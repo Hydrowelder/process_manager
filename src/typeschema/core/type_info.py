@@ -1168,5 +1168,3 @@ class TypeInfo(BaseModel):
                     result[name] = cls.from_annotation(annotation)
 
         return result
-
-

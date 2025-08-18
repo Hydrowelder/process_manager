@@ -14,7 +14,7 @@ from typeflow.registry.base_registry import (
 class Person(SerializableModel):
     """A person model using SerializableModel (without registry integration)"""
 
-    model_version: ClassVar[str] = "1.0.0"
+    version: ClassVar[str] = "1.0.0"
 
     full_name: str
     age: int
@@ -24,7 +24,7 @@ class Person(SerializableModel):
 class Address(BaseComponent):
     """An address model using BaseComponent (with registry capability)"""
 
-    model_version: ClassVar[str] = "1.1.0"
+    version: ClassVar[str] = "1.1.0"
 
     street: str
     city: str
@@ -35,7 +35,7 @@ class Address(BaseComponent):
 class Contact(ByTypeComponent):
     """A contact model using ByTypeComponent (auto-registers in global registry)"""
 
-    model_version: ClassVar[str] = "1.0.0"
+    version: ClassVar[str] = "1.0.0"
 
     person: Person
     addresses: List[Address] = []

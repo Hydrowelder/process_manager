@@ -50,7 +50,7 @@ class SerializableModel(BaseModel):
     @computed_field
     def type_info(self) -> TypeInfo:
         """Returns the type information for this model class."""
-        # Explicitly include the model_version
+        # Explicitly include the version
         return TypeInfo.from_obj(self)
 
     @classmethod
