@@ -1,9 +1,0 @@
-{
-  "model_type": "Invoice",
-  "namespace": "billing",
-  "data": {
-    "invoice_id": "inv_001",
-    "amount": 99.99,
-    "paid": false
-  }
-}
