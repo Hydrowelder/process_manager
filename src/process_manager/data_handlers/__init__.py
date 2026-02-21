@@ -1,4 +1,8 @@
 from .named_value import NamedValue, NamedValueState
-from .named_value_collection import NamedValueCollection
+from .named_value_collections import NamedValueDict
 
-__all__ = ["NamedValue", "NamedValueCollection", "NamedValueState"]
+__all__ = [
+    "NamedValue",
+    "NamedValueDict",
+    "NamedValueState",
+]

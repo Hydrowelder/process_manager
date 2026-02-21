@@ -13,7 +13,7 @@ def test_initial_state_unset():
     assert nv.state is NamedValueState.UNSET
     assert nv.is_set is False
 
-    with pytest.raises(ValueError, match="has not been set yet"):
+    with pytest.raises(ValueError, match="has not been set"):
         _ = nv.value
 
 
@@ -107,3 +107,7 @@ def test_generic_type_propagation_for_type_checkers():
 
     # This should type-check statically
     takes_int(nv.value)
+
+
+if __name__ == "__main__":
+    test_set_value_once()
