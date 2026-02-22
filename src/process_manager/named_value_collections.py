@@ -6,7 +6,7 @@ from typing import Any, overload
 
 from pydantic import Field, RootModel
 
-from process_manager.data_handlers.named_value import NamedValue
+from process_manager.named_value import NamedValue
 
 __all__ = ["NamedValueDict", "NamedValueList"]
 

@@ -15,8 +15,8 @@ from pydantic import (
     model_validator,
 )
 
-from process_manager.data_handlers.named_value import NamedValue
-from process_manager.data_handlers.named_value_collections import NamedValueDict
+from process_manager.named_value import NamedValue
+from process_manager.named_value_collections import NamedValueDict
 
 if TYPE_CHECKING:
     from scipy.stats.distributions import rv_continuous, rv_discrete, rv_frozen

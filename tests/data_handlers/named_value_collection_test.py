@@ -1,12 +1,6 @@
 import pytest
 
-from process_manager.data_handlers.named_value import (
-    NamedValue,
-)
-from process_manager.data_handlers.named_value_collections import (
-    NamedValueDict,
-    NamedValueList,
-)
+from process_manager import NamedValue, NamedValueDict, NamedValueList
 
 
 def test_dict_setitem_validation():

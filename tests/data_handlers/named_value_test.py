@@ -1,10 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from process_manager.data_handlers.named_value import (
-    NamedValue,
-    NamedValueState,
-)
+from process_manager import NamedValue, NamedValueState
 
 
 def test_initial_state_unset():
