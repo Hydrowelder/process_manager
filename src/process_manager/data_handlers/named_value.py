@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = ["NamedValue", "NamedValueState"]
+
+logger = logging.getLogger(__name__)
 
 
 class NamedValueState(StrEnum):
@@ -39,34 +42,38 @@ class NamedValue[T](BaseModel):
     def value(self) -> T:
         match self.state:
             case NamedValueState.UNSET:
-                raise ValueError(f"Value for {self.name} has not been set.")
+                msg = f"Value for {self.name} has not been set."
+                logger.critical(msg)
+                raise ValueError(msg)
             case NamedValueState.SET:
                 if self.stored_value is None:
                     # Defensive: impossible unless model was corrupted
-                    raise RuntimeError(
-                        f"NamedValue '{self.name}' is set but stored_value is None"
-                    )
+                    msg = f"NamedValue '{self.name}' is set but stored_value is None"
+                    logger.critical(msg)
+                    raise RuntimeError(msg)
                 return self.stored_value
             case _:
-                raise NotImplementedError(
-                    f"The enumeration for {self.state} has not been implemented."
-                )
+                msg = f"The enumeration for {self.state} has not been implemented."
+                logger.critical(msg)
+                raise NotImplementedError(msg)
 
     @value.setter
     def value(self, value: T) -> None:
         match self.state:
             case NamedValueState.SET:
-                raise ValueError(
-                    f"Value for {self.name} has already been set and is frozen."
-                )
+                msg = f"Value for {self.name} has already been set and is frozen."
+                logger.critical(msg)
+                raise ValueError(msg)
             case NamedValueState.UNSET:
-                self.force_set_value(value=value)
+                self.force_set_value(value=value, warn=False)
             case _:
-                raise NotImplementedError(
-                    f"The enumeration for {self.state} has not been implemented."
-                )
+                msg = f"The enumeration for {self.state} has not been implemented."
+                logger.critical(msg)
+                raise NotImplementedError(msg)
 
-    def force_set_value(self, value: T) -> None:
+    def force_set_value(self, value: T, warn: bool = True) -> None:
+        if warn:
+            logger.warning(f"Forcing value of {self.name} to {value}")
         self.stored_value = value
         self.state = NamedValueState.SET
 

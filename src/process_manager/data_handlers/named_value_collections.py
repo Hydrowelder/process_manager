@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Iterator
 from typing import Any, overload
 
@@ -9,6 +10,8 @@ from process_manager.data_handlers.named_value import NamedValue
 
 __all__ = ["NamedValueDict", "NamedValueList"]
 
+logger = logging.getLogger(__name__)
+
 
 class NamedValueDict(RootModel[dict[str, NamedValue[Any]]]):
     root: dict[str, NamedValue[Any]] = Field(default_factory=dict)
@@ -16,13 +19,17 @@ class NamedValueDict(RootModel[dict[str, NamedValue[Any]]]):
     def __getitem__(self, key: str) -> NamedValue[Any]:
         """Get an item in the dictionary with the specified key."""
         if key not in self.root:
-            raise KeyError(f"NamedValue '{key}' not found.")
+            msg = f"NamedValue '{key}' not found."
+            logger.critical(msg)
+            raise KeyError(msg)
         return self.root[key]
 
     def __setitem__(self, key: str, value: NamedValue[Any]) -> None:
         """Set the value of a single key-value pair."""
         if key != value.name:
-            raise ValueError(f"Key '{key}' must match NamedValue name '{value.name}'")
+            msg = f"Key '{key}' must match NamedValue name '{value.name}'"
+            logger.critical(msg)
+            raise ValueError(msg)
         self.update(value)
 
     def __iter__(self) -> Iterator[str]:  # pyright: ignore[reportIncompatibleMethodOverride]
@@ -52,23 +59,29 @@ class NamedValueDict(RootModel[dict[str, NamedValue[Any]]]):
     def update(self, value: NamedValue[Any]) -> None:
         """Add a new dictionary key value pair. The key cannot already exist in the dictionary."""
         if value.name in self.root:
-            raise KeyError(f"NamedValue {value.name} has already been registered.")
+            msg = f"NamedValue {value.name} has already been registered."
+            logger.critical(msg)
+            raise KeyError(msg)
 
-        self.force_update(value=value)
+        self.force_update(value=value, warn=False)
 
     def update_many(self, values: Iterable[NamedValue[Any]]) -> None:
         """Add many new dictionary key value pair. The keys cannot already exist in the dictionary."""
         for value in values:
             self.update(value=value)
 
-    def force_update(self, value: NamedValue[Any]) -> None:
+    def force_update(self, value: NamedValue[Any], warn: bool = True) -> None:
         """Forces a key-value pair into the dictionary. Overwrites existing key if it exists."""
+        if warn:
+            logger.warning(f"Forcing {value.name} into dictionary.")
         self.root[value.name] = value
 
-    def force_update_many(self, values: Iterable[NamedValue[Any]]) -> None:
+    def force_update_many(
+        self, values: Iterable[NamedValue[Any]], warn: bool = True
+    ) -> None:
         """Forces adding many new dictionary key value pair. Overwrites existing keys if they exist."""
         for value in values:
-            self.force_update(value=value)
+            self.force_update(value=value, warn=warn)
 
     def get_value(self, name: str) -> Any:
         """Gets the NamedValue value of a key."""
@@ -131,7 +144,9 @@ class NamedValueList(RootModel[list[NamedValue[Any]]]):
         for item in self.root:
             if item.name == name:
                 return item
-        raise KeyError(f"NamedValue '{name}' not found in list.")
+        msg = f"NamedValue '{name}' not found in list."
+        logger.critical(msg)
+        raise KeyError(msg)
 
     @property
     def to_named_value_dict(self) -> NamedValueDict:

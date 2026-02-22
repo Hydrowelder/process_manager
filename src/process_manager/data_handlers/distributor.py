@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Self, overload
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import scipy.stats as stats
@@ -23,6 +24,8 @@ else:
     rv_continuous = Any
     rv_discrete = Any
     rv_frozen = Any
+
+logger = logging.getLogger(__name__)
 
 
 class Distribution(BaseModel, ABC):
@@ -58,23 +61,23 @@ class Distribution(BaseModel, ABC):
     @abstractmethod
     def sample(self, size: int = 1) -> np.ndarray:
         """The core sampling logic for the distribution."""
-        raise NotImplementedError(
-            f"This method has not been implemented for {self.__class__}"
-        )
+        msg = f"This method has not been implemented for {self.__class__}"
+        logger.critical(msg)
+        raise NotImplementedError(msg)
 
     @abstractmethod
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         """Probability Density Function."""
-        raise NotImplementedError(
-            f"This method has not been implemented for {self.__class__}"
-        )
+        msg = f"This method has not been implemented for {self.__class__}"
+        logger.critical(msg)
+        raise NotImplementedError(msg)
 
     @abstractmethod
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         """Cumulative Distribution Function."""
-        raise NotImplementedError(
-            f"This method has not been implemented for {self.__class__}"
-        )
+        msg = f"This method has not been implemented for {self.__class__}"
+        logger.critical(msg)
+        raise NotImplementedError(msg)
 
     def register_to_dict(
         self, dict: NamedValueDict, size: int = 1
@@ -98,9 +101,9 @@ class NormalDistribution(Distribution):
     @model_validator(mode="after")
     def validate_sigma(self) -> Self:
         if self.sigma <= 0:
-            raise ValueError(
-                f"Distribution {self.name} has a negative standard deviation. It must be greater than 0."
-            )
+            msg = f"Distribution {self.name} has a negative standard deviation. It must be greater than 0."
+            logger.critical(msg)
+            raise ValueError(msg)
         return self
 
     def sample(self, size: int = 1) -> np.ndarray:
@@ -111,20 +114,8 @@ class NormalDistribution(Distribution):
         self._scipy = stats.norm(loc=self.mu, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
-    @overload
-    def pdf(self, x: float) -> float: ...
-
-    @overload
-    def pdf(self, x: np.ndarray) -> np.ndarray: ...
-
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.pdf(x=x)
-
-    @overload
-    def cdf(self, x: float) -> float: ...
-
-    @overload
-    def cdf(self, x: np.ndarray) -> np.ndarray: ...
 
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.cdf(x=x)
@@ -139,7 +130,9 @@ class UniformDistribution(Distribution):
     @model_validator(mode="after")
     def validate_low_high(self) -> Self:
         if self.high <= self.low:
-            raise ValueError(f"Distribution {self.name}: high must be greater than low")
+            msg = f"Distribution {self.name}: high must be greater than low"
+            logger.critical(msg)
+            raise ValueError(msg)
         return self
 
     @model_validator(mode="after")
@@ -154,18 +147,8 @@ class UniformDistribution(Distribution):
     def sample(self, size: int = 1) -> np.ndarray:
         return self.rng.uniform(low=self.low, high=self.high, size=size)
 
-    @overload
-    def pdf(self, x: float) -> float: ...
-    @overload
-    def pdf(self, x: np.ndarray) -> np.ndarray: ...
-
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.pdf(x=x)
-
-    @overload
-    def cdf(self, x: float) -> float: ...
-    @overload
-    def cdf(self, x: np.ndarray) -> np.ndarray: ...
 
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.cdf(x=x)
@@ -189,9 +172,9 @@ class CategoricalDistribution(Distribution):
     def validate_probabilities(self) -> Self:
         s = sum(self.probabilities)
         if not np.isclose(s, 1, atol=1e-8):
-            raise ValueError(
-                f"Distribution {self.name} sum of probabilities ({s:.2f}) do not sum to 1"
-            )
+            msg = f"Distribution {self.name} sum of probabilities ({s:.2f}) do not sum to 1"
+            logger.critical(msg)
+            raise ValueError(msg)
         return self
 
     @model_validator(mode="after")
@@ -207,9 +190,10 @@ class CategoricalDistribution(Distribution):
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         """Categorical distributions have no PDF. Did you mean to use pmf?"""
-        raise NotImplementedError(
-            "Categorical distributions have no PDF. Did you mean to use pmf?"
+        logger.warning(
+            "Discrete distributions use pmf, not pdf. Using pmf method instead."
         )
+        return self.pmf(x=x)
 
     def pmf(self, x: Any) -> float:
         """
@@ -224,13 +208,136 @@ class CategoricalDistribution(Distribution):
     def cdf(self, x: Any) -> float:
         """
         Cumulative Distribution Function.
-        Note: This follows the order of the 'choices' list.
+
+        Note:
+            This follows the order of the 'choices' list.
+
         """
         try:
             idx = self.categories.index(x)
             return self._scipy.cdf(idx)
         except ValueError:
             return 0.0
+
+
+class TriangularDistribution(Distribution):
+    low: float
+    mode: float
+    high: float
+
+    _scipy: rv_continuous = PrivateAttr()
+
+    @model_validator(mode="after")
+    def validate_logic(self) -> Self:
+        if not (self.low <= self.mode <= self.high):
+            msg = f"{self.name}: Must satisfy low <= mode <= high"
+            logger.critical(msg)
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def validate_scipy(self) -> Self:
+        # Scipy mapping: loc=low, scale=high-low, c=(mode-low)/scale
+        rescale = self.high - self.low
+        c = (self.mode - self.low) / rescale if rescale != 0 else 0
+        self._scipy = stats.triang(c=c, loc=self.low, scale=rescale)  # pyright: ignore[reportAttributeAccessIssue]
+        return self
+
+    def sample(self, size: int = 1) -> np.ndarray:
+        return self.rng.triangular(
+            left=self.low, mode=self.mode, right=self.high, size=size
+        )
+
+    def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.pdf(x)
+
+    def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.cdf(x)
+
+
+class TruncatedNormalDistribution(Distribution):
+    mu: float
+    """Mean value of distribution."""
+
+    sigma: float
+    """Standard deviation of distribution."""
+
+    lower: float = float("-inf")
+    """Lower bound of distribution."""
+
+    upper: float = float("inf")
+    """Upper bound of distribution."""
+
+    _scipy: rv_continuous = PrivateAttr()
+
+    @model_validator(mode="after")
+    def validate_and_setup(self) -> Self:
+        # a and b are the number of standard deviations away from the mean
+        a = (self.lower - self.mu) / self.sigma
+        b = (self.upper - self.mu) / self.sigma
+        self._scipy = stats.truncnorm(a=a, b=b, loc=self.mu, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
+        return self
+
+    def sample(self, size: int = 1) -> np.ndarray:
+        # numpy doesn't have a truncnorm generator
+        return self._scipy.rvs(size=size, random_state=self.rng)
+
+    def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.pdf(x)
+
+    def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.cdf(x)
+
+
+class LogNormalDistribution(Distribution):
+    s: float
+    """The shape parameter (sigma of the log)"""
+
+    scale: float = 1.0
+    """exp(mu)"""
+
+    _scipy: rv_continuous = PrivateAttr()
+
+    @model_validator(mode="after")
+    def validate_scipy(self) -> Self:
+        self._scipy = stats.lognorm(s=self.s, scale=self.scale)  # pyright: ignore[reportAttributeAccessIssue]
+        return self
+
+    def sample(self, size: int = 1) -> np.ndarray:
+        return self.rng.lognormal(mean=np.log(self.scale), sigma=self.s, size=size)
+
+    def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.pdf(x)
+
+    def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.cdf(x)
+
+
+class PoissonDistribution(Distribution):
+    lam: float
+    """Lambda: Average rate of occurrences"""
+
+    _scipy: rv_discrete = PrivateAttr()
+
+    @model_validator(mode="after")
+    def validate_scipy(self) -> Self:
+        self._scipy = stats.poisson(mu=self.lam)  # pyright: ignore[reportAttributeAccessIssue]
+        return self
+
+    def sample(self, size: int = 1) -> np.ndarray:
+        return self.rng.poisson(lam=self.lam, size=size)
+
+    def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        logger.warning(
+            "Discrete distributions use pmf, not pdf. Using pmf method instead."
+        )
+        return self.pmf(k=x)
+
+    def pmf(self, k: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.pmf(k)
+
+    def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.cdf(x)
 
 
 if __name__ == "__main__":
