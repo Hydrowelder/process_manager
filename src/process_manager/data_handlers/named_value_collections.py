@@ -97,7 +97,6 @@ class NamedValueList(RootModel[list[NamedValue[Any]]]):
 
     @overload
     def __getitem__(self, index: int) -> NamedValue[Any]: ...
-
     @overload
     def __getitem__(self, index: slice) -> list[NamedValue[Any]]: ...
 
