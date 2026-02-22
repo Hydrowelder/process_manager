@@ -27,6 +27,18 @@ else:
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "BernoulliDistribution",
+    "CategoricalDistribution",
+    "ExponentialDistribution",
+    "LogNormalDistribution",
+    "NormalDistribution",
+    "PoissonDistribution",
+    "TriangularDistribution",
+    "TruncatedNormalDistribution",
+    "UniformDistribution",
+]
+
 
 class Distribution(BaseModel, ABC):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -61,22 +73,22 @@ class Distribution(BaseModel, ABC):
     @abstractmethod
     def sample(self, size: int = 1) -> np.ndarray:
         """The core sampling logic for the distribution."""
-        msg = f"This method has not been implemented for {self.__class__}"
-        logger.critical(msg)
+        msg = f"This method has not been implemented for {self.__class__.__name__}"
+        logger.error(msg)
         raise NotImplementedError(msg)
 
     @abstractmethod
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         """Probability Density Function."""
-        msg = f"This method has not been implemented for {self.__class__}"
-        logger.critical(msg)
+        msg = f"This method has not been implemented for {self.__class__.__name__}"
+        logger.error(msg)
         raise NotImplementedError(msg)
 
     @abstractmethod
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         """Cumulative Distribution Function."""
-        msg = f"This method has not been implemented for {self.__class__}"
-        logger.critical(msg)
+        msg = f"This method has not been implemented for {self.__class__.__name__}"
+        logger.error(msg)
         raise NotImplementedError(msg)
 
     def register_to_dict(
@@ -87,6 +99,19 @@ class Distribution(BaseModel, ABC):
         nv = NamedValue[np.ndarray](name=self.name, stored_value=samples)
         dict.update(nv)
         return nv
+
+    @abstractmethod
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        """
+        Percent Point Function (Inverse of CDF). Used to find the value at a specific quantile (e.g., 0.95).
+
+        Args:
+            q: Probability (0.0 to 1.0).
+
+        """
+        msg = f"Method 'ppf' not implemented for {self.__class__.__name__}"
+        logger.error(msg)
+        raise NotImplementedError(msg)
 
 
 class NormalDistribution(Distribution):
@@ -102,7 +127,7 @@ class NormalDistribution(Distribution):
     def validate_sigma(self) -> Self:
         if self.sigma <= 0:
             msg = f"Distribution {self.name} has a negative standard deviation. It must be greater than 0."
-            logger.critical(msg)
+            logger.error(msg)
             raise ValueError(msg)
         return self
 
@@ -120,10 +145,16 @@ class NormalDistribution(Distribution):
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.cdf(x=x)
 
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
+
 
 class UniformDistribution(Distribution):
     low: float
+    """Minimum value of distribution."""
+
     high: float
+    """Maximum value of distribution."""
 
     _scipy: rv_continuous = PrivateAttr()
 
@@ -131,7 +162,7 @@ class UniformDistribution(Distribution):
     def validate_low_high(self) -> Self:
         if self.high <= self.low:
             msg = f"Distribution {self.name}: high must be greater than low"
-            logger.critical(msg)
+            logger.error(msg)
             raise ValueError(msg)
         return self
 
@@ -153,6 +184,9 @@ class UniformDistribution(Distribution):
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.cdf(x=x)
 
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
+
 
 class CategoricalDistribution(Distribution):
     choices: Sequence[tuple[Any, float]]
@@ -173,7 +207,7 @@ class CategoricalDistribution(Distribution):
         s = sum(self.probabilities)
         if not np.isclose(s, 1, atol=1e-8):
             msg = f"Distribution {self.name} sum of probabilities ({s:.2f}) do not sum to 1"
-            logger.critical(msg)
+            logger.error(msg)
             raise ValueError(msg)
         return self
 
@@ -219,11 +253,19 @@ class CategoricalDistribution(Distribution):
         except ValueError:
             return 0.0
 
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
+
 
 class TriangularDistribution(Distribution):
     low: float
+    """Minimum value of distribution."""
+
     mode: float
+    """Peak value of distribution."""
+
     high: float
+    """Maximum value of distribution."""
 
     _scipy: rv_continuous = PrivateAttr()
 
@@ -231,7 +273,7 @@ class TriangularDistribution(Distribution):
     def validate_logic(self) -> Self:
         if not (self.low <= self.mode <= self.high):
             msg = f"{self.name}: Must satisfy low <= mode <= high"
-            logger.critical(msg)
+            logger.error(msg)
             raise ValueError(msg)
         return self
 
@@ -253,6 +295,9 @@ class TriangularDistribution(Distribution):
 
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.cdf(x)
+
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
 
 
 class TruncatedNormalDistribution(Distribution):
@@ -288,6 +333,9 @@ class TruncatedNormalDistribution(Distribution):
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.cdf(x)
 
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
+
 
 class LogNormalDistribution(Distribution):
     s: float
@@ -311,6 +359,9 @@ class LogNormalDistribution(Distribution):
 
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.cdf(x)
+
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
 
 
 class PoissonDistribution(Distribution):
@@ -338,6 +389,66 @@ class PoissonDistribution(Distribution):
 
     def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.cdf(x)
+
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
+
+
+class ExponentialDistribution(Distribution):
+    lam: float
+    """Rate parameter (lambda)."""
+
+    _scipy: rv_continuous = PrivateAttr()
+
+    @model_validator(mode="after")
+    def validate_scipy(self) -> Self:
+        self._scipy = stats.expon(scale=1 / self.lam)  # pyright: ignore[reportAttributeAccessIssue]
+        return self
+
+    def sample(self, size: int = 1) -> np.ndarray:
+        return self.rng.exponential(scale=1 / self.lam, size=size)
+
+    def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.pdf(x)
+
+    def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.cdf(x)
+
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
+
+
+class BernoulliDistribution(Distribution):
+    p: float
+    """Probability of success (0.0 to 1.0)."""
+
+    _scipy: rv_discrete = PrivateAttr()
+
+    @model_validator(mode="after")
+    def validate_probability(self) -> Self:
+        if not (0 <= self.p <= 1):
+            msg = f"Probability p must be between 0 and 1. Got {self.p}"
+            logger.error(msg)
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def validate_scipy(self) -> Self:
+        self._scipy = stats.bernoulli(self.p)  # pyright: ignore[reportAttributeAccessIssue]
+        return self
+
+    def sample(self, size: int = 1) -> np.ndarray:
+        # np.random doesn't have a 'bernoulli', so we use binomial with n=1
+        return self.rng.binomial(n=1, p=self.p, size=size)
+
+    def pmf(self, x: int | np.ndarray) -> float | np.ndarray:
+        return self._scipy.pmf(x)
+
+    def cdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.cdf(x)
+
+    def ppf(self, q: float | np.ndarray) -> float | np.ndarray:
+        return self._scipy.ppf(q)
 
 
 if __name__ == "__main__":

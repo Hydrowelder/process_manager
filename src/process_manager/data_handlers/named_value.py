@@ -43,18 +43,18 @@ class NamedValue[T](BaseModel):
         match self.state:
             case NamedValueState.UNSET:
                 msg = f"Value for {self.name} has not been set."
-                logger.critical(msg)
+                logger.error(msg)
                 raise ValueError(msg)
             case NamedValueState.SET:
                 if self.stored_value is None:
                     # Defensive: impossible unless model was corrupted
                     msg = f"NamedValue '{self.name}' is set but stored_value is None"
-                    logger.critical(msg)
+                    logger.error(msg)
                     raise RuntimeError(msg)
                 return self.stored_value
             case _:
                 msg = f"The enumeration for {self.state} has not been implemented."
-                logger.critical(msg)
+                logger.error(msg)
                 raise NotImplementedError(msg)
 
     @value.setter
@@ -62,13 +62,13 @@ class NamedValue[T](BaseModel):
         match self.state:
             case NamedValueState.SET:
                 msg = f"Value for {self.name} has already been set and is frozen."
-                logger.critical(msg)
+                logger.error(msg)
                 raise ValueError(msg)
             case NamedValueState.UNSET:
                 self.force_set_value(value=value, warn=False)
             case _:
                 msg = f"The enumeration for {self.state} has not been implemented."
-                logger.critical(msg)
+                logger.error(msg)
                 raise NotImplementedError(msg)
 
     def force_set_value(self, value: T, warn: bool = True) -> None:

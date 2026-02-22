@@ -20,7 +20,7 @@ class NamedValueDict(RootModel[dict[str, NamedValue[Any]]]):
         """Get an item in the dictionary with the specified key."""
         if key not in self.root:
             msg = f"NamedValue '{key}' not found."
-            logger.critical(msg)
+            logger.error(msg)
             raise KeyError(msg)
         return self.root[key]
 
@@ -28,7 +28,7 @@ class NamedValueDict(RootModel[dict[str, NamedValue[Any]]]):
         """Set the value of a single key-value pair."""
         if key != value.name:
             msg = f"Key '{key}' must match NamedValue name '{value.name}'"
-            logger.critical(msg)
+            logger.error(msg)
             raise ValueError(msg)
         self.update(value)
 
@@ -60,7 +60,7 @@ class NamedValueDict(RootModel[dict[str, NamedValue[Any]]]):
         """Add a new dictionary key value pair. The key cannot already exist in the dictionary."""
         if value.name in self.root:
             msg = f"NamedValue {value.name} has already been registered."
-            logger.critical(msg)
+            logger.error(msg)
             raise KeyError(msg)
 
         self.force_update(value=value, warn=False)
@@ -145,7 +145,7 @@ class NamedValueList(RootModel[list[NamedValue[Any]]]):
             if item.name == name:
                 return item
         msg = f"NamedValue '{name}' not found in list."
-        logger.critical(msg)
+        logger.error(msg)
         raise KeyError(msg)
 
     @property
