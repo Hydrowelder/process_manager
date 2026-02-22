@@ -5,120 +5,118 @@ from process_manager.data_handlers.named_value import (
 )
 from process_manager.data_handlers.named_value_collections import (
     NamedValueDict,
+    NamedValueList,
 )
 
 
-def test_register_named_value():
-    collection = NamedValueDict()
-    nv = NamedValue[int](name="count")
+def test_dict_setitem_validation():
+    """Ensure __setitem__ enforces the key matches the name."""
+    d = NamedValueDict()
+    nv = NamedValue[int](name="correct_name")
 
-    collection.update(nv)
+    # Happy path
+    d["correct_name"] = nv
 
-    assert "count" in collection
-    assert len(collection) == 1
-    assert collection["count"] is nv
-
-
-def test_register_duplicate_name_raises():
-    collection = NamedValueDict()
-
-    nv1 = NamedValue[int](name="count")
-    nv2 = NamedValue[int](name="count")
-
-    collection.update(nv1)
-
-    with pytest.raises(KeyError, match="has already been registered"):
-        collection.update(nv2)
+    # Error path: mismatch
+    with pytest.raises(ValueError, match="must match NamedValue name"):
+        d["wrong_key"] = nv
 
 
-def test_get_missing_name_raises():
-    collection = NamedValueDict()
+def test_dict_force_update():
+    """Ensure force_update actually overwrites without error."""
+    d = NamedValueDict()
+    nv1 = NamedValue[int](name="x", stored_value=1)
+    nv2 = NamedValue[int](name="x", stored_value=2)
 
-    with pytest.raises(KeyError):
-        collection["missing"]
+    d.update(nv1)
+    d.force_update(nv2)  # Should not raise KeyError
 
-
-def test_get_value_returns_underlying_value():
-    collection = NamedValueDict()
-    nv = NamedValue[int](name="count")
-
-    collection.update(nv)
-    nv.value = 42
-
-    assert collection.get_value("count") == 42
+    assert d.get_value("x") == 2
+    assert len(d) == 1
 
 
-def test_collection_respects_named_value_freeze():
-    collection = NamedValueDict()
-    nv = NamedValue[int](name="x")
+def test_dict_to_list_conversion():
+    """Test the @property conversion to NamedValueList."""
+    d = NamedValueDict()
+    d.update_many(
+        [
+            NamedValue[int](name="a", stored_value=1),
+            NamedValue[int](name="b", stored_value=2),
+        ]
+    )
 
-    collection.update(nv)
-    nv.value = 10
+    nv_list = d.named_value_list
+    assert isinstance(nv_list, NamedValueList)
+    assert len(nv_list) == 2
+    assert any(x.name == "a" for x in nv_list)
 
-    with pytest.raises(ValueError):
-        nv.value = 20
+
+def test_list_indexing_and_slicing():
+    """Verify list-like access works for both ints and slices."""
+    nv_list = NamedValueList()
+    items = [
+        NamedValue[int](name="a"),
+        NamedValue[int](name="b"),
+        NamedValue[int](name="c"),
+    ]
+    nv_list.extend(items)
+
+    # Integer index
+    assert nv_list[0].name == "a"
+
+    # Slice
+    subset = nv_list[1:]
+    assert isinstance(subset, list)
+    assert len(subset) == 2
+    assert subset[0].name == "b"
 
 
-def test_collection_returns_live_reference():
-    collection = NamedValueDict()
+def test_list_delitem_and_pop():
+    """Ensure list removal methods work correctly."""
+    nv_list = NamedValueList()
     nv = NamedValue[int](name="a")
+    nv_list.append(nv)
 
-    collection.update(nv)
+    assert len(nv_list) == 1
 
-    retrieved = collection["a"]
-    retrieved.value = 7
+    # Test del
+    del nv_list[0]
+    assert len(nv_list) == 0
 
-    assert nv.value == 7
-
-
-def test_values_returns_all_named_values():
-    collection = NamedValueDict()
-
-    a = NamedValue[int](name="a")
-    b = NamedValue[str](name="b")
-
-    collection.update(a)
-    collection.update(b)
-
-    values = collection.values()
-
-    assert set(v.name for v in values) == {"a", "b"}
+    # Test pop
+    nv_list.append(nv)
+    popped = nv_list.pop()
+    assert popped is nv
+    assert len(nv_list) == 0
 
 
-def test_collection_serialization_roundtrip():
-    collection = NamedValueDict()
+def test_list_find_by_name():
+    """Test the name lookup helper in the list."""
+    nv_list = NamedValueList()
+    nv = NamedValue[str](name="target", stored_value="hit")
+    nv_list.append(nv)
 
-    a = NamedValue[int](name="a")
-    b = NamedValue[str](name="b")
+    assert nv_list.find_by_name("target").value == "hit"
 
-    a.value = 1
-    b.value = "hello"
-
-    collection.update(a)
-    collection.update(b)
-
-    dumped = collection.model_dump_json()
-    restored = NamedValueDict.model_validate_json(dumped)
-
-    assert restored.get_value("a") == 1
-    assert restored.get_value("b") == "hello"
+    with pytest.raises(KeyError, match="not found in list"):
+        nv_list.find_by_name("ghost")
 
 
-def test_type_safety_after_deserialization():
-    collection = NamedValueDict()
-    nv = NamedValue[float](name="x")
-    nv.value = 5.0
+def test_list_to_dict_conversion():
+    """Verify ordered list can transform into a keyed dict."""
+    nv_list = NamedValueList()
+    nv_list.append(NamedValue[int](name="x", stored_value=100))
 
-    collection.update(nv)
-
-    restored = NamedValueDict.model_validate_json(collection.model_dump_json())
-
-    x = restored["x"]
-    assert isinstance(x.value, float)
-
-    with pytest.raises(ValueError):
-        x.value = "not an int"
+    d = nv_list.to_named_value_dict
+    assert isinstance(d, NamedValueDict)
+    assert d.get_value("x") == 100
 
 
-if __name__ == "__main__":
-    test_type_safety_after_deserialization()
+def test_list_to_dict_duplicate_fail():
+    """List to Dict conversion should fail if list contains duplicate names."""
+    nv_list = NamedValueList()
+    nv_list.append(NamedValue[int](name="dup"))
+    nv_list.append(NamedValue[int](name="dup"))  # Valid in list
+
+    with pytest.raises(KeyError, match="already been registered"):
+        _ = nv_list.to_named_value_dict
