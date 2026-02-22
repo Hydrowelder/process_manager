@@ -441,6 +441,12 @@ class BernoulliDistribution(Distribution):
         # np.random doesn't have a 'bernoulli', so we use binomial with n=1
         return self.rng.binomial(n=1, p=self.p, size=size)
 
+    def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
+        logger.warning(
+            "Discrete distributions use pmf, not pdf. Using pmf method instead."
+        )
+        return self.pdf(x=x)
+
     def pmf(self, x: int | np.ndarray) -> float | np.ndarray:
         return self._scipy.pmf(x)
 
