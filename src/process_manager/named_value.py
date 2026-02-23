@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from enum import StrEnum
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -27,18 +27,28 @@ class NamedValue[T](BaseModel):
 
     name: str
     state: NamedValueState = Field(default=NamedValueState.UNSET)
-    stored_value: T | None = Field(default=None)  # TODO convert to sentinel val?
+    stored_value: T | Literal[NamedValueState.UNSET] = Field(
+        default=NamedValueState.UNSET
+    )
 
     @model_validator(mode="after")
     def validate_state(self) -> Self:
         match self.state:
             case NamedValueState.UNSET:
-                if self.stored_value is not None:
-                    logger.warning("")  # TODO: write me!
+                if self.stored_value is not NamedValueState.UNSET:
+                    logger.warning(
+                        "NamedValue had a stored value, but the state was set to unset. Coercing to set for you."
+                    )
                     self.state = NamedValueState.SET
             case NamedValueState.SET:
-                if self.stored_value is None:
-                    self.state = NamedValueState.UNSET
+                if self.stored_value is NamedValueState.UNSET:
+                    msg = f"{self.name} stored value cannot be set to `NamedValueState.UNSET`"
+                    logger.error(msg)
+                    raise ValueError(msg)
+            case _:
+                msg = f"The enumeration for {self.state} has not been implemented."
+                logger.error(msg)
+                raise NotImplementedError(msg)
         return self
 
     @property
@@ -48,10 +58,10 @@ class NamedValue[T](BaseModel):
                 msg = f"Value for {self.name} has not been set."
                 logger.error(msg)
                 raise ValueError(msg)
-            case NamedValueState.SET:  # BUG This wont work with sentinel
-                if self.stored_value is None:
+            case NamedValueState.SET:
+                if self.stored_value is NamedValueState.UNSET:
                     # Defensive: impossible unless model was corrupted
-                    msg = f"NamedValue '{self.name}' is set but stored_value is None"
+                    msg = f"NamedValue '{self.name}' is set but stored_value is `NamedValueState.SET`"
                     logger.error(msg)
                     raise RuntimeError(msg)
                 return self.stored_value
