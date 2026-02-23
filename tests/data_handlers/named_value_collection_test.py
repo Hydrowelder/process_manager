@@ -12,7 +12,7 @@ def test_dict_setitem_validation():
     d["correct_name"] = nv
 
     # Error path: mismatch
-    with pytest.raises(ValueError, match="must match NamedValue name"):
+    with pytest.raises(ValueError, match="must match name"):
         d["wrong_key"] = nv
 
 
@@ -114,3 +114,7 @@ def test_list_to_dict_duplicate_fail():
 
     with pytest.raises(KeyError, match="already been registered"):
         _ = nv_list.to_named_value_dict
+
+
+if __name__ == "__main__":
+    test_dict_setitem_validation()

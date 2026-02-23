@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 from enum import StrEnum
-from typing import Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-__all__ = ["NamedValue", "NamedValueState"]
+from process_manager.base_collections import BaseDict, BaseList
+
+__all__ = ["NamedValue", "NamedValueDict", "NamedValueList", "NamedValueState"]
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +27,14 @@ class NamedValue[T](BaseModel):
 
     name: str
     state: NamedValueState = Field(default=NamedValueState.UNSET)
-    stored_value: T | None = Field(default=None)
+    stored_value: T | None = Field(default=None)  # TODO convert to sentinel val?
 
     @model_validator(mode="after")
     def validate_state(self) -> Self:
         match self.state:
             case NamedValueState.UNSET:
                 if self.stored_value is not None:
+                    logger.warning("")  # TODO: write me!
                     self.state = NamedValueState.SET
             case NamedValueState.SET:
                 if self.stored_value is None:
@@ -45,7 +48,7 @@ class NamedValue[T](BaseModel):
                 msg = f"Value for {self.name} has not been set."
                 logger.error(msg)
                 raise ValueError(msg)
-            case NamedValueState.SET:
+            case NamedValueState.SET:  # BUG This wont work with sentinel
                 if self.stored_value is None:
                     # Defensive: impossible unless model was corrupted
                     msg = f"NamedValue '{self.name}' is set but stored_value is None"
@@ -80,3 +83,31 @@ class NamedValue[T](BaseModel):
     @property
     def is_set(self) -> bool:
         return self.state is NamedValueState.SET
+
+
+class NamedValueDict(BaseDict[NamedValue[Any]]):
+    """Dictionary specifically for sampled results."""
+
+    def get_value(self, name: str) -> Any:
+        """Gets the NamedValue value of a key."""
+        return self[name].value
+
+    def get_raw_value(self, name: str) -> Any | None:
+        """Gets the NamedValue raw value. This includes None if the value has not yet been set."""
+        return self[name].stored_value
+
+    @property
+    def named_value_list(self) -> NamedValueList:
+        """Converts the NamedValueDict to a NamedValueList."""
+        return NamedValueList(list(self.values()))
+
+
+class NamedValueList(BaseList[NamedValue[Any]]):
+    """List specifically for sampled results."""
+
+    @property
+    def to_named_value_dict(self) -> NamedValueDict:
+        """Converts the NamedValueList to a NamedValueDict."""
+        d = NamedValueDict()
+        d.update_many(self.root)
+        return d

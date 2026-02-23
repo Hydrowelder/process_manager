@@ -15,8 +15,8 @@ from pydantic import (
     model_validator,
 )
 
-from process_manager.named_value import NamedValue
-from process_manager.named_value_collections import NamedValueDict
+from process_manager.base_collections import BaseDict, BaseList
+from process_manager.named_value import NamedValue, NamedValueDict
 
 if TYPE_CHECKING:
     from scipy.stats.distributions import rv_continuous, rv_discrete, rv_frozen
@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "BernoulliDistribution",
     "CategoricalDistribution",
+    "DistributionDict",
+    "DistributionList",
     "ExponentialDistribution",
     "LogNormalDistribution",
     "NormalDistribution",
@@ -91,13 +93,18 @@ class Distribution(BaseModel, ABC):
         logger.error(msg)
         raise NotImplementedError(msg)
 
-    def register_to_dict(
-        self, dict: NamedValueDict, size: int = 1
+    def update_dicts(
+        self,
+        dist_dict: DistributionDict,
+        named_value_dict: NamedValueDict,
+        size: int = 1,
     ) -> NamedValue[np.ndarray]:
         """Samples from the distribution and registers the result."""
         samples = self.sample(size=size)
         nv = NamedValue[np.ndarray](name=self.name, stored_value=samples)
-        dict.update(nv)
+
+        dist_dict.update(self)
+        named_value_dict.update(nv)
         return nv
 
     @abstractmethod
@@ -457,6 +464,26 @@ class BernoulliDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
+class DistributionDict(BaseDict[Distribution]):
+    """Dictionary specifically for sampled results."""
+
+    @property
+    def distribution_list(self) -> DistributionList:
+        """Converts the DistributionDict to a DistributionList."""
+        return DistributionList(list(self.values()))
+
+
+class DistributionList(BaseList[Distribution]):
+    """List specifically for distributions."""
+
+    @property
+    def to_distribution_dict(self) -> DistributionDict:
+        """Converts the DistributionList to a DistributionDict."""
+        d = DistributionDict()
+        d.update_many(self.root)
+        return d
+
+
 if __name__ == "__main__":
     # 1. Define distributions (Serialization ready!)
     normal_dist = NormalDistribution(name="hight", mu=170, sigma=10, seed=42)
@@ -483,13 +510,20 @@ if __name__ == "__main__":
     )
 
     # 2. Create the registry
+    dist_dict = DistributionDict()
     named_value_dict = NamedValueDict()
 
     # 3. Sample and Register
     # These return NamedValue[np.ndarray] objects
-    height = normal_dist.register_to_dict(named_value_dict, size=5)
-    weight = uniform_dist.register_to_dict(named_value_dict, size=5)
-    blood_type = cat_dist.register_to_dict(named_value_dict, size=5)
+    height = normal_dist.update_dicts(
+        dist_dict=dist_dict, named_value_dict=named_value_dict, size=5
+    )
+    weight = uniform_dist.update_dicts(
+        dist_dict=dist_dict, named_value_dict=named_value_dict, size=5
+    )
+    blood_type = cat_dist.update_dicts(
+        dist_dict=dist_dict, named_value_dict=named_value_dict, size=5
+    )
 
     # 4. Access values via the NamedValue reference OR the hash
     print(f"Heights: {height.value}")
@@ -501,7 +535,9 @@ if __name__ == "__main__":
     print(normal_dist.model_dump_json(indent=2))
 
     # 6. Check that child_seeds works
-    identical_height = identical_normal_dist.register_to_dict(named_value_dict, size=5)
+    identical_height = identical_normal_dist.update_dicts(
+        dist_dict=dist_dict, named_value_dict=named_value_dict, size=5
+    )
 
     print(f"{normal_dist.pdf(x=np.array([np.linspace(150, 190, 5)]))=}")
     print(f"{normal_dist.cdf(x=np.array([np.linspace(150, 190, 5)]))=}")
