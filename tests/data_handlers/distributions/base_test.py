@@ -30,5 +30,7 @@ def test_serialization_roundtrip():
     new_dist = NormalDistribution.model_validate_json(json_data)
 
     assert new_dist.name == dist.name
+    assert new_dist.seed == dist.seed
     assert new_dist.mu == dist.mu
+    assert new_dist.nominal == dist.nominal
     assert np.array_equal(dist.sample(5), new_dist.sample(5))

@@ -4,13 +4,17 @@ import hashlib
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Annotated, Any, Self
 
 import numpy as np
 import scipy.stats as stats
+from numpydantic import NDArray
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
+    Field,
+    PlainSerializer,
     PrivateAttr,
     model_validator,
 )
@@ -41,8 +45,38 @@ __all__ = [
     "UniformDistribution",
 ]
 
+NOMINAL_RUN_NUM = 0
+"""Run number definition where nominal case will be used."""
 
-class Distribution(BaseModel, ABC):
+
+class Undefined:
+    """Undefined value."""
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return "UNDEFINED"
+
+
+UNDEFINED = Undefined()
+"""Sentinel to differentiate between None and unset."""
+
+
+def validate_undefined(v: Any) -> Any:
+    if v == "__UNDEFINED__":
+        return UNDEFINED
+    return v
+
+
+SerializableUndefined = Annotated[
+    Undefined,
+    BeforeValidator(validate_undefined),
+    PlainSerializer(lambda _: "__UNDEFINED__", return_type=str),
+]
+
+
+class Distribution[T](BaseModel, ABC):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
@@ -51,21 +85,45 @@ class Distribution(BaseModel, ABC):
     seed: int | None = None
     """Seed of the distribution.
 
-    Leave as None or omit to use a random seed. If the seed is not None, the specified seed will be salted with the name attribute to add randomness. This allows you to use the same seed for multiple distributions while also being able to simply serialize and deserialize the distribution. See the `validate_seed` validator method for how the seed is hashed.
+    Leave as None or omit to use a random seed. If the seed is not None, the specified seed will be salted with the name and run_number attributes to add randomness. This allows you to use the same seed for multiple distributions while also being able to simply serialize and deserialize the distribution. See the `validate_seed` validator method for how the seed is hashed.
     """
 
+    nominal: T | None | SerializableUndefined = Field(default=UNDEFINED)
+    """Value the distribution should take if the run_number attribute is equal to 0."""
+
+    _run_num: int = PrivateAttr(default=NOMINAL_RUN_NUM)
+    """Run number for sampling from the distribution. This is used to salt the seed (if specified)."""
+
     _rng: np.random.Generator = PrivateAttr()
+    """Random number generator."""
+
+    def refresh_seed(self) -> None:
+        if self.seed is not None:
+            # combine name and run number to salt
+            name_to_salt = f"{self.name}_{self._run_num}"
+
+            # generate a repeatable salt for the seed, name, and run_number
+            salt = int(hashlib.md5(name_to_salt.encode()).hexdigest(), 16)
+            local_seed = (self.seed + salt) % (2**32)
+
+            self._rng = np.random.default_rng(seed=local_seed)
+        else:
+            # use pure random value
+            self._rng = np.random.default_rng()
 
     @model_validator(mode="after")
     def validate_seed(self) -> Self:
-        if self.seed is not None:
-            salt = int(hashlib.md5(self.name.encode()).hexdigest(), 16)
-            local_seed = (self.seed + salt) % (2**32)
-            self._rng = np.random.default_rng(seed=local_seed)
-        else:
-            self._rng = np.random.default_rng()
-
+        self.refresh_seed()
         return self
+
+    @property
+    def run_num(self) -> int:
+        return self._run_num
+
+    @run_num.setter
+    def run_num(self, new: int) -> None:
+        self._run_num = new
+        self.refresh_seed()
 
     @property
     def rng(self) -> np.random.Generator:
@@ -73,11 +131,18 @@ class Distribution(BaseModel, ABC):
         return self._rng
 
     @abstractmethod
-    def sample(self, size: int = 1) -> np.ndarray:
-        """The core sampling logic for the distribution."""
+    def draw(self, size: int = 1) -> NDArray[Any, T]:
+        """Perform a random draw"""
         msg = f"This method has not been implemented for {self.__class__.__name__}"
         logger.error(msg)
         raise NotImplementedError(msg)
+
+    def sample(self, size: int = 1) -> NDArray[Any, T]:
+        """The core sampling logic for the distribution."""
+        if self._run_num == NOMINAL_RUN_NUM and self.nominal is not UNDEFINED:
+            return np.full(size, self.nominal)
+        else:
+            return self.draw(size=size)
 
     @abstractmethod
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
@@ -98,10 +163,10 @@ class Distribution(BaseModel, ABC):
         dist_dict: DistributionDict,
         named_value_dict: NamedValueDict,
         size: int = 1,
-    ) -> NamedValue[np.ndarray]:
+    ) -> NamedValue[NDArray[Any, T]]:
         """Samples from the distribution and registers the result."""
         samples = self.sample(size=size)
-        nv = NamedValue[np.ndarray](name=self.name, stored_value=samples)
+        nv = NamedValue(name=self.name, stored_value=samples)
 
         dist_dict.update(self)
         named_value_dict.update(nv)
@@ -120,8 +185,16 @@ class Distribution(BaseModel, ABC):
         logger.error(msg)
         raise NotImplementedError(msg)
 
+    @property
+    def has_nominal(self) -> bool:
+        return self.nominal is not UNDEFINED
 
-class NormalDistribution(Distribution):
+    @property
+    def is_nominal(self) -> bool:
+        return self.run_num == NOMINAL_RUN_NUM and self.has_nominal
+
+
+class NormalDistribution(Distribution[float]):
     mu: float
     """Mean value of distribution."""
 
@@ -138,7 +211,7 @@ class NormalDistribution(Distribution):
             raise ValueError(msg)
         return self
 
-    def sample(self, size: int = 1) -> np.ndarray:
+    def draw(self, size: int = 1):
         return self.rng.normal(loc=self.mu, scale=self.sigma, size=size)
 
     @model_validator(mode="after")
@@ -156,7 +229,7 @@ class NormalDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class UniformDistribution(Distribution):
+class UniformDistribution(Distribution[float]):
     low: float
     """Minimum value of distribution."""
 
@@ -182,7 +255,7 @@ class UniformDistribution(Distribution):
     def scale(self) -> float:
         return self.high - self.low
 
-    def sample(self, size: int = 1) -> np.ndarray:
+    def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.uniform(low=self.low, high=self.high, size=size)
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
@@ -195,14 +268,14 @@ class UniformDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class CategoricalDistribution(Distribution):
-    choices: Sequence[tuple[Any, float]]
+class CategoricalDistribution[T](Distribution[T]):
+    choices: Sequence[tuple[T, float]]
     """Choices for the categorical distribution. Tuples have the format (category, probability). This guarantees each category has an associated probability."""
 
     _scipy: rv_discrete = PrivateAttr()
 
     @property
-    def categories(self) -> list[Any]:
+    def categories(self) -> list[T]:
         return [t[0] for t in self.choices]
 
     @property
@@ -226,17 +299,17 @@ class CategoricalDistribution(Distribution):
         )
         return self
 
-    def sample(self, size: int = 1) -> np.ndarray:
-        return self.rng.choice(a=self.categories, size=size, p=self.probabilities)
+    def draw(self, size: int = 1) -> NDArray[Any, T]:
+        return self.rng.choice(a=self.categories, size=size, p=self.probabilities)  # type: ignore
 
-    def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
+    def pdf(self, x: Any) -> float | NDArray[Any, float]:
         """Categorical distributions have no PDF. Did you mean to use pmf?"""
         logger.warning(
             "Discrete distributions use pmf, not pdf. Using pmf method instead."
         )
         return self.pmf(x=x)
 
-    def pmf(self, x: Any) -> float:
+    def pmf(self, x: T) -> float:
         """
         Probability Mass Function. Returns the probability of a specific category 'x'.
         """
@@ -264,7 +337,7 @@ class CategoricalDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class TriangularDistribution(Distribution):
+class TriangularDistribution(Distribution[float]):
     low: float
     """Minimum value of distribution."""
 
@@ -292,7 +365,7 @@ class TriangularDistribution(Distribution):
         self._scipy = stats.triang(c=c, loc=self.low, scale=rescale)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
-    def sample(self, size: int = 1) -> np.ndarray:
+    def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.triangular(
             left=self.low, mode=self.mode, right=self.high, size=size
         )
@@ -307,7 +380,7 @@ class TriangularDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class TruncatedNormalDistribution(Distribution):
+class TruncatedNormalDistribution(Distribution[float]):
     mu: float
     """Mean value of distribution."""
 
@@ -330,7 +403,7 @@ class TruncatedNormalDistribution(Distribution):
         self._scipy = stats.truncnorm(a=a, b=b, loc=self.mu, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
-    def sample(self, size: int = 1) -> np.ndarray:
+    def draw(self, size: int = 1) -> np.ndarray:
         # numpy doesn't have a truncnorm generator
         return self._scipy.rvs(size=size, random_state=self.rng)
 
@@ -344,7 +417,7 @@ class TruncatedNormalDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class LogNormalDistribution(Distribution):
+class LogNormalDistribution(Distribution[float]):
     s: float
     """The shape parameter (sigma of the log)"""
 
@@ -358,7 +431,7 @@ class LogNormalDistribution(Distribution):
         self._scipy = stats.lognorm(s=self.s, scale=self.scale)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
-    def sample(self, size: int = 1) -> np.ndarray:
+    def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.lognormal(mean=np.log(self.scale), sigma=self.s, size=size)
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
@@ -371,7 +444,7 @@ class LogNormalDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class PoissonDistribution(Distribution):
+class PoissonDistribution(Distribution[int]):
     lam: float
     """Lambda: Average rate of occurrences"""
 
@@ -382,7 +455,7 @@ class PoissonDistribution(Distribution):
         self._scipy = stats.poisson(mu=self.lam)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
-    def sample(self, size: int = 1) -> np.ndarray:
+    def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.poisson(lam=self.lam, size=size)
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
@@ -401,7 +474,7 @@ class PoissonDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class ExponentialDistribution(Distribution):
+class ExponentialDistribution(Distribution[float]):
     lam: float
     """Rate parameter (lambda)."""
 
@@ -412,7 +485,7 @@ class ExponentialDistribution(Distribution):
         self._scipy = stats.expon(scale=1 / self.lam)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
-    def sample(self, size: int = 1) -> np.ndarray:
+    def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.exponential(scale=1 / self.lam, size=size)
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
@@ -425,7 +498,7 @@ class ExponentialDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class BernoulliDistribution(Distribution):
+class BernoulliDistribution(Distribution[bool]):
     p: float
     """Probability of success (0.0 to 1.0)."""
 
@@ -444,7 +517,7 @@ class BernoulliDistribution(Distribution):
         self._scipy = stats.bernoulli(self.p)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
-    def sample(self, size: int = 1) -> np.ndarray:
+    def draw(self, size: int = 1) -> np.ndarray:
         # np.random doesn't have a 'bernoulli', so we use binomial with n=1
         return self.rng.binomial(n=1, p=self.p, size=size)
 
@@ -464,7 +537,7 @@ class BernoulliDistribution(Distribution):
         return self._scipy.ppf(q)
 
 
-class DistributionDict(BaseDict[Distribution]):
+class DistributionDict(BaseDict[Distribution[Any]]):
     """Dictionary specifically for sampled results."""
 
     @property
@@ -472,8 +545,13 @@ class DistributionDict(BaseDict[Distribution]):
         """Converts the DistributionDict to a DistributionList."""
         return DistributionList(list(self.values()))
 
+    def set_run_nums(self, run_num: int) -> None:
+        for dist in self.values():
+            if dist.run_num != run_num:
+                dist.run_num = run_num
 
-class DistributionList(BaseList[Distribution]):
+
+class DistributionList(BaseList[Distribution[Any]]):
     """List specifically for distributions."""
 
     @property
@@ -483,25 +561,43 @@ class DistributionList(BaseList[Distribution]):
         d.update_many(self.root)
         return d
 
+    def set_run_nums(self, run_num: int) -> None:
+        for dist in self:
+            if dist.run_num != run_num:
+                dist.run_num = run_num
+
 
 if __name__ == "__main__":
+    from enum import StrEnum
+
     # 1. Define distributions (Serialization ready!)
     normal_dist = NormalDistribution(name="hight", mu=170, sigma=10, seed=42)
     uniform_dist = UniformDistribution(name="weight", low=60, high=90, seed=42)
 
-    cat_dist = CategoricalDistribution(
+    class Blood(StrEnum):
+        O_P = "O+"
+        O_N = "O-"
+        A_P = "A+"
+        A_N = "A-"
+        B_P = "B+"
+        B_N = "B-"
+        AB_P = "AB+"
+        AB_N = "AB-"
+
+    cat_dist = CategoricalDistribution[Blood](
         name="blood_type",
         choices=[
-            ("O+", 0.36),
-            ("O-", 0.14),
-            ("A+", 0.28),
-            ("A-", 0.08),
-            ("B+", 0.08),
-            ("B-", 0.03),
-            ("AB+", 0.02),
-            ("AB-", 0.01),
+            (Blood.O_P, 0.36),
+            (Blood.O_N, 0.14),
+            (Blood.A_P, 0.28),
+            (Blood.A_N, 0.08),
+            (Blood.B_P, 0.08),
+            (Blood.B_N, 0.03),
+            (Blood.AB_P, 0.02),
+            (Blood.AB_N, 0.01),
         ],
         seed=42,
+        nominal=Blood.O_P,
     )
     print(cat_dist.choices)
 
@@ -545,6 +641,6 @@ if __name__ == "__main__":
     print(f"{uniform_dist.pdf(x=np.array([np.linspace(50, 100, 5)]))=}")
     print(f"{uniform_dist.cdf(x=np.array([np.linspace(50, 100, 5)]))=}")
 
-    print(f"{cat_dist.pmf(x="O+")=}")
+    print(f"{cat_dist.pmf(x=Blood.O_P)=}")
 
     breakpoint()
