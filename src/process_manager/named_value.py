@@ -7,6 +7,7 @@ from typing import Any, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from process_manager.base_collections import BaseDict, BaseList
+from process_manager.mixins import NumericMixin
 
 __all__ = ["NamedValue", "NamedValueDict", "NamedValueList", "NamedValueState"]
 
@@ -18,7 +19,7 @@ class NamedValueState(StrEnum):
     SET = "set"
 
 
-class NamedValue[T](BaseModel):
+class NamedValue[T](BaseModel, NumericMixin):
     model_config = ConfigDict(
         validate_assignment=True,
         extra="forbid",
@@ -36,9 +37,6 @@ class NamedValue[T](BaseModel):
         match self.state:
             case NamedValueState.UNSET:
                 if self.stored_value is not NamedValueState.UNSET:
-                    logger.warning(
-                        "NamedValue had a stored value, but the state was set to unset. Coercing to set for you."
-                    )
                     self.state = NamedValueState.SET
             case NamedValueState.SET:
                 if self.stored_value is NamedValueState.UNSET:
@@ -55,7 +53,7 @@ class NamedValue[T](BaseModel):
     def value(self) -> T:
         match self.state:
             case NamedValueState.UNSET:
-                msg = f"Value for {self.name} has not been set."
+                msg = f"Value for NamedValue {self.name} has not been set."
                 logger.error(msg)
                 raise ValueError(msg)
             case NamedValueState.SET:
@@ -74,7 +72,7 @@ class NamedValue[T](BaseModel):
     def value(self, value: T) -> None:
         match self.state:
             case NamedValueState.SET:
-                msg = f"Value for {self.name} has already been set and is frozen."
+                msg = f"Value for NamedValue {self.name} has already been set and is frozen."
                 logger.error(msg)
                 raise ValueError(msg)
             case NamedValueState.UNSET:
@@ -86,7 +84,7 @@ class NamedValue[T](BaseModel):
 
     def force_set_value(self, value: T, warn: bool = True) -> None:
         if warn:
-            logger.warning(f"Forcing value of {self.name} to {value}")
+            logger.warning(f"Forcing value of NamedValue {self.name} to {value}")
         self.stored_value = value
         self.state = NamedValueState.SET
 
