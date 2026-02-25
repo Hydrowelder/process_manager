@@ -137,10 +137,10 @@ class BaseList[T](RootModel[list[T]]):
 
 
 if __name__ == "__main__":
-    from process_manager import NamedValue, NamedValueDict, NamedValueList
+    from process_manager import NamedValue, NamedValueDict, NamedValueList, ValueName
 
-    name = NamedValue[str](name="name", stored_value="john")
-    age = NamedValue[int](name="age", stored_value=1)
+    name = NamedValue[str](name=ValueName("name"), stored_value="john")
+    age = NamedValue[int](name=ValueName("age"), stored_value=1)
 
     named_value_dict = NamedValueDict()
     named_value_dict.update_many([name, age])
