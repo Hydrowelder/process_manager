@@ -1,12 +1,13 @@
 import pytest
 
 from process_manager import NamedValue, NamedValueDict, NamedValueList
+from process_manager.named_value import ValueName
 
 
 def test_dict_setitem_validation():
     """Ensure __setitem__ enforces the key matches the name."""
     d = NamedValueDict()
-    nv = NamedValue[int](name="correct_name")
+    nv = NamedValue[int](name=ValueName("correct_name"))
 
     # Happy path
     d["correct_name"] = nv
@@ -19,8 +20,8 @@ def test_dict_setitem_validation():
 def test_dict_force_update():
     """Ensure force_update actually overwrites without error."""
     d = NamedValueDict()
-    nv1 = NamedValue[int](name="x", stored_value=1)
-    nv2 = NamedValue[int](name="x", stored_value=2)
+    nv1 = NamedValue[int](name=ValueName("x"), stored_value=1)
+    nv2 = NamedValue[int](name=ValueName("x"), stored_value=2)
 
     d.update(nv1)
     d.force_update(nv2)  # Should not raise KeyError
@@ -34,8 +35,8 @@ def test_dict_to_list_conversion():
     d = NamedValueDict()
     d.update_many(
         [
-            NamedValue[int](name="a", stored_value=1),
-            NamedValue[int](name="b", stored_value=2),
+            NamedValue[int](name=ValueName("a"), stored_value=1),
+            NamedValue[int](name=ValueName("b"), stored_value=2),
         ]
     )
 
@@ -49,9 +50,9 @@ def test_list_indexing_and_slicing():
     """Verify list-like access works for both ints and slices."""
     nv_list = NamedValueList()
     items = [
-        NamedValue[int](name="a"),
-        NamedValue[int](name="b"),
-        NamedValue[int](name="c"),
+        NamedValue[int](name=ValueName("a")),
+        NamedValue[int](name=ValueName("b")),
+        NamedValue[int](name=ValueName("c")),
     ]
     nv_list.extend(items)
 
@@ -68,7 +69,7 @@ def test_list_indexing_and_slicing():
 def test_list_delitem_and_pop():
     """Ensure list removal methods work correctly."""
     nv_list = NamedValueList()
-    nv = NamedValue[int](name="a")
+    nv = NamedValue[int](name=ValueName("a"))
     nv_list.append(nv)
 
     assert len(nv_list) == 1
@@ -87,7 +88,7 @@ def test_list_delitem_and_pop():
 def test_list_find_by_name():
     """Test the name lookup helper in the list."""
     nv_list = NamedValueList()
-    nv = NamedValue[str](name="target", stored_value="hit")
+    nv = NamedValue[str](name=ValueName("target"), stored_value="hit")
     nv_list.append(nv)
 
     assert nv_list.find_by_name("target").value == "hit"
@@ -99,7 +100,7 @@ def test_list_find_by_name():
 def test_list_to_dict_conversion():
     """Verify ordered list can transform into a keyed dict."""
     nv_list = NamedValueList()
-    nv_list.append(NamedValue[int](name="x", stored_value=100))
+    nv_list.append(NamedValue[int](name=ValueName("x"), stored_value=100))
 
     d = nv_list.to_named_value_dict
     assert isinstance(d, NamedValueDict)
@@ -109,8 +110,8 @@ def test_list_to_dict_conversion():
 def test_list_to_dict_duplicate_fail():
     """List to Dict conversion should fail if list contains duplicate names."""
     nv_list = NamedValueList()
-    nv_list.append(NamedValue[int](name="dup"))
-    nv_list.append(NamedValue[int](name="dup"))  # Valid in list
+    nv_list.append(NamedValue[int](name=ValueName("dup")))
+    nv_list.append(NamedValue[int](name=ValueName("dup")))  # Valid in list
 
     with pytest.raises(KeyError, match="already been registered"):
         _ = nv_list.to_named_value_dict

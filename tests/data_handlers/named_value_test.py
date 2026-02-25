@@ -2,10 +2,11 @@ import pytest
 from pydantic import ValidationError
 
 from process_manager import NamedValue, NamedValueState
+from process_manager.named_value import ValueName
 
 
 def test_initial_state_unset():
-    nv = NamedValue[int](name="x")
+    nv = NamedValue[int](name=ValueName("x"))
 
     assert nv.state is NamedValueState.UNSET
     assert nv.is_set is False
@@ -15,7 +16,7 @@ def test_initial_state_unset():
 
 
 def test_set_value_once():
-    nv = NamedValue[int](name="x")
+    nv = NamedValue[int](name=ValueName("x"))
 
     nv.value = 10
 
@@ -25,7 +26,7 @@ def test_set_value_once():
 
 
 def test_double_set_raises():
-    nv = NamedValue[int](name="x")
+    nv = NamedValue[int](name=ValueName("x"))
     nv.value = 10
 
     with pytest.raises(ValueError, match="already been set and is frozen"):
@@ -33,7 +34,7 @@ def test_double_set_raises():
 
 
 def test_force_set_overwrites():
-    nv = NamedValue[int](name="x")
+    nv = NamedValue[int](name=ValueName("x"))
     nv.value = 10
 
     nv.force_set_value(20)
@@ -43,14 +44,14 @@ def test_force_set_overwrites():
 
 
 def test_type_enforcement_on_assignment():
-    nv = NamedValue[int](name="x")
+    nv = NamedValue[int](name=ValueName("x"))
 
     with pytest.raises(ValidationError):
         nv.value = "not an int"  # type: ignore[arg-type]
 
 
 def test_validate_assignment_enforced():
-    nv = NamedValue[int](name="x")
+    nv = NamedValue[int](name=ValueName("x"))
     nv.value = 5
 
     with pytest.raises(ValidationError):
@@ -58,7 +59,7 @@ def test_validate_assignment_enforced():
 
 
 def test_serialization_round_trip():
-    nv = NamedValue[int](name="x")
+    nv = NamedValue[int](name=ValueName("x"))
     nv.value = 42
 
     dumped = nv.model_dump_json()
@@ -70,7 +71,7 @@ def test_serialization_round_trip():
 
 
 def test_unset_serialization_round_trip():
-    nv = NamedValue[int](name="x")
+    nv = NamedValue[int](name=ValueName("x"))
 
     dumped = nv.model_dump_json()
     loaded = NamedValue[int].model_validate_json(dumped)
@@ -84,11 +85,11 @@ def test_unset_serialization_round_trip():
 
 def test_extra_fields_forbidden():
     with pytest.raises(ValidationError):
-        NamedValue[int](name="x", extra_field=123)  # type: ignore[arg-type]
+        NamedValue[int](name=ValueName("x"), extra_field=123)  # type: ignore[arg-type]
 
 
 def test_string_named_value():
-    nv = NamedValue[str](name="username")
+    nv = NamedValue[str](name=ValueName("username"))
     nv.value = "david"
 
     assert isinstance(nv.value, str)
@@ -96,7 +97,7 @@ def test_string_named_value():
 
 
 def test_generic_type_propagation_for_type_checkers():
-    nv = NamedValue[int](name="count")
+    nv = NamedValue[int](name=ValueName("count"))
     nv.value = 7
 
     def takes_int(x: int) -> None:

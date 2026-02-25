@@ -1,6 +1,7 @@
 from .distribution import (
     BernoulliDistribution,
     CategoricalDistribution,
+    DistName,
     DistributionDict,
     DistributionList,
     ExponentialDistribution,
@@ -11,11 +12,19 @@ from .distribution import (
     TruncatedNormalDistribution,
     UniformDistribution,
 )
-from .named_value import NamedValue, NamedValueDict, NamedValueList, NamedValueState
+from .named_value import (
+    NamedValue,
+    NamedValueDict,
+    NamedValueList,
+    NamedValueState,
+    Val,
+    ValueName,
+)
 
 __all__ = [
     "BernoulliDistribution",
     "CategoricalDistribution",
+    "DistName",
     "DistributionDict",
     "DistributionList",
     "ExponentialDistribution",
@@ -29,4 +38,6 @@ __all__ = [
     "TriangularDistribution",
     "TruncatedNormalDistribution",
     "UniformDistribution",
+    "Val",
+    "ValueName",
 ]

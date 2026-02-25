@@ -1,6 +1,6 @@
 import numpy as np
 
-from process_manager import NormalDistribution
+from process_manager import DistName, NormalDistribution
 
 
 def test_distribution_seeding_and_salting():
@@ -8,11 +8,11 @@ def test_distribution_seeding_and_salting():
     seed = 42
 
     # Same name, same seed -> Identical results
-    dist_a1 = NormalDistribution(name="x", mu=0, sigma=1, seed=seed)
-    dist_a2 = NormalDistribution(name="x", mu=0, sigma=1, seed=seed)
+    dist_a1 = NormalDistribution(name=DistName("x"), mu=0, sigma=1, seed=seed)
+    dist_a2 = NormalDistribution(name=DistName("x"), mu=0, sigma=1, seed=seed)
 
     # Different name, same seed -> Different results
-    dist_b = NormalDistribution(name="y", mu=0, sigma=1, seed=seed)
+    dist_b = NormalDistribution(name=DistName("y"), mu=0, sigma=1, seed=seed)
 
     samples_a1 = dist_a1.sample(5)
     samples_a2 = dist_a2.sample(5)
@@ -24,7 +24,7 @@ def test_distribution_seeding_and_salting():
 
 def test_serialization_roundtrip():
     """Verify Pydantic serialization preserves state."""
-    dist = NormalDistribution(name="test", mu=10, sigma=2, seed=123)
+    dist = NormalDistribution(name=DistName("test"), mu=10, sigma=2, seed=123)
     json_data = dist.model_dump_json()
 
     new_dist = NormalDistribution.model_validate_json(json_data)

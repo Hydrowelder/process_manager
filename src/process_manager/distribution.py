@@ -4,7 +4,7 @@ import hashlib
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Annotated, Any, Self
+from typing import TYPE_CHECKING, Annotated, Any, NewType, Self
 
 import numpy as np
 import scipy.stats as stats
@@ -20,7 +20,7 @@ from pydantic import (
 )
 
 from process_manager.base_collections import BaseDict, BaseList
-from process_manager.named_value import NamedValue, NamedValueDict
+from process_manager.named_value import NamedValue, NamedValueDict, ValueName
 
 if TYPE_CHECKING:
     from scipy.stats.distributions import rv_continuous, rv_discrete, rv_frozen
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "BernoulliDistribution",
     "CategoricalDistribution",
+    "DistName",
     "DistributionDict",
     "DistributionList",
     "ExponentialDistribution",
@@ -44,6 +45,9 @@ __all__ = [
     "TruncatedNormalDistribution",
     "UniformDistribution",
 ]
+
+DistName = NewType("DistName", str)
+"""Alias of string. Used to type hint a distribution."""
 
 NOMINAL_RUN_NUM = 0
 """Run number definition where nominal case will be used."""
@@ -79,7 +83,7 @@ SerializableUndefined = Annotated[
 class Distribution[T](BaseModel, ABC):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    name: str
+    name: DistName
     """Name of the distribution."""
 
     seed: int | None = None
@@ -166,7 +170,7 @@ class Distribution[T](BaseModel, ABC):
     ) -> NamedValue[NDArray[Any, T]]:
         """Samples from the distribution and registers the result."""
         samples = self.sample(size=size)
-        nv = NamedValue(name=self.name, stored_value=samples)
+        nv = NamedValue(name=ValueName(self.name), stored_value=samples)
 
         dist_dict.update(self)
         named_value_dict.update(nv)
@@ -571,8 +575,10 @@ if __name__ == "__main__":
     from enum import StrEnum
 
     # 1. Define distributions (Serialization ready!)
-    normal_dist = NormalDistribution(name="hight", mu=170, sigma=10, seed=42)
-    uniform_dist = UniformDistribution(name="weight", low=60, high=90, seed=42)
+    normal_dist = NormalDistribution(name=DistName("height"), mu=170, sigma=10, seed=42)
+    uniform_dist = UniformDistribution(
+        name=DistName("weight"), low=60, high=90, seed=42
+    )
 
     class Blood(StrEnum):
         O_P = "O+"
@@ -585,7 +591,7 @@ if __name__ == "__main__":
         AB_N = "AB-"
 
     cat_dist = CategoricalDistribution[Blood](
-        name="blood_type",
+        name=DistName("blood_type"),
         choices=[
             (Blood.O_P, 0.36),
             (Blood.O_N, 0.14),
@@ -602,7 +608,7 @@ if __name__ == "__main__":
     print(cat_dist.choices)
 
     identical_normal_dist = NormalDistribution(
-        name="height_copy", mu=170, sigma=10, seed=42
+        name=DistName("height_copy"), mu=170, sigma=10, seed=42
     )
 
     # 2. Create the registry

@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from process_manager import (
+    DistName,
     ExponentialDistribution,
     LogNormalDistribution,
     NormalDistribution,
@@ -13,7 +14,7 @@ from process_manager import (
 
 def test_normal_distribution_properties():
     mu, sigma = 100, 15
-    dist = NormalDistribution(name="iq", mu=mu, sigma=sigma)
+    dist = NormalDistribution(name=DistName("iq"), mu=mu, sigma=sigma)
 
     # Statistical properties
     assert dist.pdf(mu) > 0
@@ -27,7 +28,7 @@ def test_normal_distribution_properties():
 
 
 def test_uniform_distribution_bounds():
-    dist = UniformDistribution(name="u", low=10, high=20)
+    dist = UniformDistribution(name=DistName("u"), low=10, high=20)
     samples = dist.sample(100)
 
     assert np.all(samples >= 10)
@@ -37,7 +38,7 @@ def test_uniform_distribution_bounds():
 
 def test_triangular_validation():
     with pytest.raises(ValueError, match="Must satisfy low <= mode <= high"):
-        TriangularDistribution(name="bad", low=10, mode=5, high=20)
+        TriangularDistribution(name=DistName("bad"), low=10, mode=5, high=20)
 
 
 def test_truncated_normal_bounds():
@@ -45,7 +46,7 @@ def test_truncated_normal_bounds():
     mu, sigma = 100, 10
     lower, upper = 95, 105
     dist = TruncatedNormalDistribution(
-        name="clamped", mu=mu, sigma=sigma, lower=lower, upper=upper
+        name=DistName("clamped"), mu=mu, sigma=sigma, lower=lower, upper=upper
     )
 
     samples = dist.sample(1000)
@@ -60,7 +61,9 @@ def test_truncated_normal_bounds():
 def test_truncated_normal_extreme_bounds():
     """Verify it handles a mean that is outside the bounds."""
     # Mean is 0, but we only allow samples between 10 and 20
-    dist = TruncatedNormalDistribution(name="offset", mu=0, sigma=1, lower=10, upper=20)
+    dist = TruncatedNormalDistribution(
+        name=DistName("offset"), mu=0, sigma=1, lower=10, upper=20
+    )
     samples = dist.sample(100)
     assert np.all(samples >= 10)
 
@@ -69,7 +72,7 @@ def test_log_normal_properties():
     """Verify LogNormal is positive and respects the shape parameter."""
     s = 0.5  # sigma of the log
     scale = np.exp(2)  # mu of the log is 2
-    dist = LogNormalDistribution(name="skewed", s=s, scale=scale)
+    dist = LogNormalDistribution(name=DistName("skewed"), s=s, scale=scale)
 
     samples = dist.sample(1000)
     assert np.all(samples > 0)
@@ -83,7 +86,7 @@ def test_log_normal_properties():
 def test_exponential_properties():
     """Verify Exponential distribution follows the rate lambda."""
     lam = 0.5
-    dist = ExponentialDistribution(name="decay", lam=lam)
+    dist = ExponentialDistribution(name=DistName("decay"), lam=lam)
 
     samples = dist.sample(1000)
     assert np.all(samples >= 0)
@@ -100,9 +103,11 @@ def test_exponential_properties():
 @pytest.mark.parametrize(
     "dist_instance",
     [
-        TruncatedNormalDistribution(name="tn", mu=50, sigma=5, lower=40, upper=60),
-        LogNormalDistribution(name="ln", s=0.5, scale=10),
-        ExponentialDistribution(name="ex", lam=2.0),
+        TruncatedNormalDistribution(
+            name=DistName("tn"), mu=50, sigma=5, lower=40, upper=60
+        ),
+        LogNormalDistribution(name=DistName("ln"), s=0.5, scale=10),
+        ExponentialDistribution(name=DistName("ex"), lam=2.0),
     ],
 )
 def test_continuous_ppf_consistency(dist_instance):

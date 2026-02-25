@@ -2,16 +2,32 @@ from __future__ import annotations
 
 import logging
 from enum import StrEnum
-from typing import Any, Literal, Self
+from typing import Any, Literal, NewType, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from process_manager.base_collections import BaseDict, BaseList
 from process_manager.mixins import NumericMixin
 
-__all__ = ["NamedValue", "NamedValueDict", "NamedValueList", "NamedValueState"]
+__all__ = [
+    "NamedValue",
+    "NamedValueDict",
+    "NamedValueList",
+    "NamedValueState",
+    "Val",
+    "ValueName",
+]
 
 logger = logging.getLogger(__name__)
+
+ValueName = NewType("ValueName", str)
+"""Alias of string. Used to type hint a named value's name."""
+
+
+class Val(BaseModel):
+    """Defines a reference to a variable. This is intended for use with variables used as random inputs for Monte Carlo analysis."""
+
+    ref: ValueName
 
 
 class NamedValueState(StrEnum):
@@ -26,7 +42,7 @@ class NamedValue[T](BaseModel, NumericMixin):
         arbitrary_types_allowed=True,
     )
 
-    name: str
+    name: ValueName
     state: NamedValueState = Field(default=NamedValueState.UNSET)
     stored_value: T | Literal[NamedValueState.UNSET] = Field(
         default=NamedValueState.UNSET
@@ -96,11 +112,11 @@ class NamedValue[T](BaseModel, NumericMixin):
 class NamedValueDict(BaseDict[NamedValue[Any]]):
     """Dictionary specifically for sampled results."""
 
-    def get_value(self, name: str) -> Any:
+    def get_value(self, name: ValueName | str) -> Any:
         """Gets the NamedValue value of a key."""
         return self[name].value
 
-    def get_raw_value(self, name: str) -> Any | None:
+    def get_raw_value(self, name: ValueName | str) -> Any | None:
         """Gets the NamedValue raw value. This includes None if the value has not yet been set."""
         return self[name].stored_value
 
