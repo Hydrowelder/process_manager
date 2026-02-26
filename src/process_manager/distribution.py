@@ -285,7 +285,11 @@ class NormalDistribution(Distribution[float]):
 
 
 class UniformDistribution(Distribution[float]):
-    """https://en.wikipedia.org/wiki/Continuous_uniform_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/uniform.png" width="400" />
+    """
 
     low: float
     """Minimum value of distribution."""
@@ -332,7 +336,11 @@ class UniformDistribution(Distribution[float]):
 
 
 class CategoricalDistribution[T](Distribution[T]):
-    """https://en.wikipedia.org/wiki/Categorical_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Categorical_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/categorical.png" width="400" />
+    """
 
     choices: dict[T, float]
     """Choices for the categorical distribution. Tuples have the format (category, probability). This guarantees each category has an associated probability."""
@@ -408,7 +416,11 @@ class CategoricalDistribution[T](Distribution[T]):
 
 
 class TriangularDistribution(Distribution[float]):
-    """https://en.wikipedia.org/wiki/Triangular_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Triangular_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/triangular.png" width="400" />
+    """
 
     low: float
     """Minimum value of distribution."""
@@ -459,7 +471,11 @@ class TriangularDistribution(Distribution[float]):
 
 
 class TruncatedNormalDistribution(Distribution[float]):
-    """https://en.wikipedia.org/wiki/Truncated_normal_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Truncated_normal_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/truncated_normal.png" width="400" />
+    """
 
     mu: float
     """Mean value of distribution."""
@@ -504,7 +520,11 @@ class TruncatedNormalDistribution(Distribution[float]):
 
 
 class LogNormalDistribution(Distribution[float]):
-    """https://en.wikipedia.org/wiki/Log-normal_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Log-normal_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/log_normal.png" width="400" />
+    """
 
     s: float
     """The shape parameter (sigma of the log)"""
@@ -539,7 +559,11 @@ class LogNormalDistribution(Distribution[float]):
 
 
 class PoissonDistribution(Distribution[int]):
-    """https://en.wikipedia.org/wiki/Poisson_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Poisson_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/poisson.png" width="400" />
+    """
 
     lam: float
     """Lambda: Average rate of occurrences"""
@@ -577,7 +601,11 @@ class PoissonDistribution(Distribution[int]):
 
 
 class ExponentialDistribution(Distribution[float]):
-    """https://en.wikipedia.org/wiki/Exponential_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Exponential_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/exponential.png" width="400" />
+    """
 
     lam: float
     """Rate parameter (lambda)."""
@@ -609,7 +637,11 @@ class ExponentialDistribution(Distribution[float]):
 
 
 class BernoulliDistribution(Distribution[bool]):
-    """https://en.wikipedia.org/wiki/Bernoulli_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Bernoulli_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/bernoulli.png" width="400" />
+    """
 
     p: float
     """Probability of success (0.0 to 1.0)."""
