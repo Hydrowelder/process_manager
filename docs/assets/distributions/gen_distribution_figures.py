@@ -20,14 +20,14 @@ from process_manager import (
     UniformDistribution,
 )
 
-ASSET_DIR = Path(__file__).parent.parent / "docs" / "assets" / "distributions"
+ASSET_DIR = Path(__file__).parent
 ORANGE = "#FF5F05"
 BLUE = "#13294B"
 
-DPI = 100
+DPI = 200
 ASPECT_RATIO = 12 / 5
 
-WIDTH = 600 / DPI
+WIDTH = 6  # inches
 HEIGHT = WIDTH / ASPECT_RATIO
 
 

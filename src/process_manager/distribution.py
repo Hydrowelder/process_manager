@@ -239,9 +239,24 @@ class Distribution[T](BaseModel, ABC):
 
 class NormalDistribution(Distribution[float]):
     """
-    https://en.wikipedia.org/wiki/Normal_distribution
+    Represent a standard Gaussian "Bell Curve" distribution.
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/normal.png" width="400" />
+    The Normal distribution is the most common choice for modeling natural variation in physical properties where the value is likely to be near a mean with symmetric falloff.
+
+    Examples:
+        ```python
+        # Modeling the mass of a link with 10% standard deviation
+        dist = NormalDistribution(name="link_mass", mu=1.5, sigma=0.15)
+        ```
+
+    References:
+        1. [NumPy](https://numpy.org/doc/stable/reference/random/generated/numpy.random.normal.html)
+        2. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.norm.html)
+        3. [Wikipedia](https://en.wikipedia.org/wiki/Normal_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/normal.png" width="400" />
+
     """
 
     mu: float
@@ -286,9 +301,24 @@ class NormalDistribution(Distribution[float]):
 
 class UniformDistribution(Distribution[float]):
     """
-    https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+    Represent a distribution where every value in a range is equally likely.
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/uniform.png" width="400" />
+    Use this when you have strict upper and lower bounds but no knowledge of which values are more probable within that window.
+
+    Examples:
+        ```python
+        # Randomizing a starting joint position between -0.5 and 0.5 radians
+        dist = UniformDistribution(name="init_pos", low=-0.5, high=0.5)
+        ```
+
+    References:
+        1. [NumPy](https://numpy.org/doc/stable/reference/random/generated/numpy.random.uniform.html)
+        2. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.uniform.html)
+        3. [Wikipedia](https://en.wikipedia.org/wiki/Continuous_uniform_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/uniform.png" width="400" />
+
     """
 
     low: float
@@ -337,9 +367,31 @@ class UniformDistribution(Distribution[float]):
 
 class CategoricalDistribution[T](Distribution[T]):
     """
-    https://en.wikipedia.org/wiki/Categorical_distribution
+    Represent a discrete distribution over a fixed set of named choices.
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/categorical.png" width="400" />
+    Ideal for switching between discrete simulation states, such as different
+    materials, object types, or floor textures.
+
+    Examples:
+        ```python
+        class Material(StrEnum):
+            STEEL = "steel"
+            WOOD = "wood"
+
+        dist = CategoricalDistribution[Material](
+            name="floor_material",
+            choices={Material.STEEL: 0.8, Material.WOOD: 0.2}
+        )
+        ```
+
+    References:
+        1. [NumPy](https://numpy.org/doc/stable/reference/random/generated/numpy.random.choice.html)
+        2. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.rv_discrete.html)
+        3. [Wikipedia](https://en.wikipedia.org/wiki/Categorical_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/categorical.png" width="400" />
+
     """
 
     choices: dict[T, float]
@@ -417,9 +469,24 @@ class CategoricalDistribution[T](Distribution[T]):
 
 class TriangularDistribution(Distribution[float]):
     """
-    https://en.wikipedia.org/wiki/Triangular_distribution
+    Represent a continuous distribution with a triangular shape.
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/triangular.png" width="400" />
+    Often used as a "simpler" version of the Normal distribution when you know the minimum, maximum, and most likely value (mode).
+
+    Examples:
+        ```python
+        # Damping where 1.0 is the spec, but it might range from 0.8 to 1.5
+        dist = TriangularDistribution(name="joint_damping", low=0.8, high=1.5, mode=1.0)
+        ```
+
+    References:
+        1. [NumPy](https://numpy.org/doc/stable/reference/random/generated/numpy.random.triangular.html)
+        2. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.triang.html)
+        3. [Wikipedia](https://en.wikipedia.org/wiki/Triangular_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/triangular.png" width="400" />
+
     """
 
     low: float
@@ -472,9 +539,23 @@ class TriangularDistribution(Distribution[float]):
 
 class TruncatedNormalDistribution(Distribution[float]):
     """
-    https://en.wikipedia.org/wiki/Truncated_normal_distribution
+    Represent a Normal distribution restricted to a specific interval.
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/truncated_normal.png" width="400" />
+    Useful for physical parameters that follow a bell curve but have hard physical limits (e.g., a mass that cannot be negative).
+
+    Examples:
+        ```python
+        # Friction coefficient with a lower bound of 0 to prevent anti-friction
+        dist = TruncatedNormalDistribution(name="friction", mu=0.5, sigma=0.1, low=0.0)
+        ```
+
+    References:
+        1. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.truncnorm.html)
+        2. [Wikipedia](https://en.wikipedia.org/wiki/Truncated_normal_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/truncated_normal.png" width="400" />
+
     """
 
     mu: float
@@ -521,9 +602,24 @@ class TruncatedNormalDistribution(Distribution[float]):
 
 class LogNormalDistribution(Distribution[float]):
     """
-    https://en.wikipedia.org/wiki/Log-normal_distribution
+    Represent a distribution whose logarithm is normally distributed.
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/log_normal.png" width="400" />
+    Best for variables that are naturally positive and can have "long-tail" outliers, such as contact forces or durations.
+
+    Examples:
+        ```python
+        # Modeling a scale factor that is usually 1.0 but can occasionally be 5.0
+        dist = LogNormalDistribution(name="stiffness_scale", s=0.5, scale=1.0)
+        ```
+
+    References:
+        1. [NumPy](https://numpy.org/doc/stable/reference/random/generated/numpy.random.lognormal.html)
+        2. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.lognorm.html)
+        3. [Wikipedia](https://en.wikipedia.org/wiki/Log-normal_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/log_normal.png" width="400" />
+
     """
 
     s: float
@@ -560,9 +656,24 @@ class LogNormalDistribution(Distribution[float]):
 
 class PoissonDistribution(Distribution[int]):
     """
-    https://en.wikipedia.org/wiki/Poisson_distribution
+    Represent the probability of a number of events occurring in a fixed interval.
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/poisson.png" width="400" />
+    Useful for counting discrete occurrences, like how many distractor objects should appear in a scene.
+
+    Examples:
+        ```python
+        # Sampling the number of random noise impulses to apply during a trial
+        dist = PoissonDistribution(name="impulse_count", lam=3.5)
+        ```
+
+    References:
+        1. [NumPy](https://numpy.org/doc/stable/reference/random/generated/numpy.random.poisson.html)
+        2. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.poisson.html)
+        3. [Wikipedia](https://en.wikipedia.org/wiki/Poisson_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/poisson.png" width="400" />
+
     """
 
     lam: float
@@ -602,9 +713,25 @@ class PoissonDistribution(Distribution[int]):
 
 class ExponentialDistribution(Distribution[float]):
     """
-    https://en.wikipedia.org/wiki/Exponential_distribution
+    Represent the time between events in a Poisson process.
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/exponential.png" width="400" />
+    In robotics, this is often used to model time-to-failure or the duration
+    between random perturbations.
+
+    Examples:
+        ```python
+        # Time in seconds between sensor noise "glitches"
+        dist = ExponentialDistribution(name="glitch_interval", lam=0.5)
+        ```
+
+    References:
+        1. [NumPy](https://numpy.org/doc/stable/reference/random/generated/numpy.random.exponential.html)
+        2. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.expon.html)
+        3. [Wikipedia](https://en.wikipedia.org/wiki/Exponential_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/exponential.png" width="400" />
+
     """
 
     lam: float
@@ -638,9 +765,25 @@ class ExponentialDistribution(Distribution[float]):
 
 class BernoulliDistribution(Distribution[bool]):
     """
-    https://en.wikipedia.org/wiki/Bernoulli_distribution
+    Represent a single binary trial (Success/Failure).
 
-    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/bernoulli.png" width="400" />
+    The simplest distribution, used for "on/off" flags, such as enabling
+    or disabling a specific sensor or randomized model feature.
+
+    Examples:
+        ```python
+        # 50% chance to enable gravity compensation for this trial
+        dist = BernoulliDistribution(name="use_grav_comp", p=0.5)
+        ```
+
+    References:
+        1. [NumPy](https://numpy.org/doc/stable/reference/random/generated/numpy.random.binomial.html)
+        2. [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bernoulli.html)
+        3. [Wikipedia](https://en.wikipedia.org/wiki/Bernoulli_distribution)
+
+    Note:
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/bernoulli.png" width="400" />
+
     """
 
     p: float
