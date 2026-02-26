@@ -24,6 +24,12 @@ ASSET_DIR = Path(__file__).parent.parent / "docs" / "assets" / "distributions"
 ORANGE = "#FF5F05"
 BLUE = "#13294B"
 
+DPI = 100
+ASPECT_RATIO = 12 / 5
+
+WIDTH = 600 / DPI
+HEIGHT = WIDTH / ASPECT_RATIO
+
 
 def get_dist(
     dist_type: DistType,
@@ -132,7 +138,7 @@ def plot_and_save(
     sup_title: str,
 ):
     """Generates a dual-panel plot for a distribution and saves it."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(WIDTH, HEIGHT))
     fig: Figure
     ax1: Axes
     ax2: Axes
@@ -213,7 +219,7 @@ def plot_and_save(
         ax.set_xlabel("Value")
 
     fig.tight_layout()
-    fig.savefig(ASSET_DIR / f"{dist.dist_type.lower()}.png")
+    fig.savefig(ASSET_DIR / f"{dist.dist_type.lower()}.png", dpi=DPI)
     plt.close(fig)
 
 

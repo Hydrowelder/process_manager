@@ -238,7 +238,11 @@ class Distribution[T](BaseModel, ABC):
 
 
 class NormalDistribution(Distribution[float]):
-    """https://en.wikipedia.org/wiki/Normal_distribution"""
+    """
+    https://en.wikipedia.org/wiki/Normal_distribution
+
+    <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/normal.png" width="400" />
+    """
 
     mu: float
     """Mean value of distribution."""
