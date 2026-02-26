@@ -65,6 +65,8 @@ ignore = ["typings"]
 
 [dependency-groups]
 dev = [
+    "callouts>=0.1.1",
+    "matplotlib>=3.10.8",
     "mkdocs>=1.6.1",
     "mkdocs-gen-files>=0.6.0",
     "mkdocs-glightbox>=0.5.2",

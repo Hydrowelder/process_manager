@@ -153,6 +153,7 @@ class Distribution[T](BaseModel, ABC):
 
     @property
     def run_num(self) -> int:
+        """Run number for sampling from the distribution. This is used to salt the seed (if specified)."""
         return self._run_num
 
     @run_num.setter

@@ -25,17 +25,38 @@ ValueName = NewType("ValueName", str)
 
 
 class Val(BaseModel):
-    """Defines a reference to a variable. This is intended for use with variables used as random inputs for Monte Carlo analysis."""
+    """
+    Defines a reference to a variable name.
+
+    This acts as a 'pointer' or 'placeholder' within other models. During processing, these references would be replaced by actual values sampled from their corresponding distributions.
+    """
 
     ref: ValueName
+    """The unique identifier for the variable to be resolved."""
 
 
 class NamedValueState(StrEnum):
+    """Internal state of a NamedValue."""
+
     UNSET = "unset"
+    """The value has been initialized but not yet sampled/populated."""
+
     SET = "set"
+    """The value has been populated and is effectively frozen."""
 
 
 class NamedValue[T](BaseModel, NumericMixin):
+    """
+    A container for a sampled variable that tracks its initialization state.
+
+    NamedValues act as the bridge between abstract distributions and concrete simulation parameters. They utilize a state-machine logic to ensure that values are not accidentally overwritten once sampled, and provide a NumericMixin to allow the container to behave like the underlying data in mathematical operations.
+
+    Notes:
+        Once `state` becomes `SET`, the `value` property will raise an error
+        on further assignment attempts unless `force_set_value` is used.
+
+    """
+
     model_config = ConfigDict(
         validate_assignment=True,
         extra="forbid",
@@ -43,13 +64,19 @@ class NamedValue[T](BaseModel, NumericMixin):
     )
 
     name: ValueName
+    """The unique identifier for this parameter."""
+
     state: NamedValueState = Field(default=NamedValueState.UNSET)
+    """The current lifecycle state (SET or UNSET)."""
+
     stored_value: T | Literal[NamedValueState.UNSET] = Field(
         default=NamedValueState.UNSET
     )
+    """The actual data held by this container."""
 
     @model_validator(mode="after")
     def validate_state(self) -> Self:
+        """Synchronizes the state enum with the actual stored_value content."""
         match self.state:
             case NamedValueState.UNSET:
                 if self.stored_value is not NamedValueState.UNSET:
@@ -67,6 +94,14 @@ class NamedValue[T](BaseModel, NumericMixin):
 
     @property
     def value(self) -> T:
+        """
+        Returns the stored value if it has been set.
+
+        Raises:
+            ValueError: If the state is UNSET.
+            RuntimeError: If the internal state is corrupted.
+
+        """
         match self.state:
             case NamedValueState.UNSET:
                 msg = f"Value for NamedValue {self.name} has not been set."
@@ -86,6 +121,13 @@ class NamedValue[T](BaseModel, NumericMixin):
 
     @value.setter
     def value(self, value: T) -> None:
+        """
+        Sets the stored value and transitions state to SET.
+
+        Raises:
+            ValueError: If the value is already SET (frozen).
+
+        """
         match self.state:
             case NamedValueState.SET:
                 msg = f"Value for NamedValue {self.name} has already been set and is frozen."
@@ -99,6 +141,14 @@ class NamedValue[T](BaseModel, NumericMixin):
                 raise NotImplementedError(msg)
 
     def force_set_value(self, value: T, warn: bool = True) -> None:
+        """
+        Manually overrides the stored value regardless of current state.
+
+        Args:
+            value: The new value to store.
+            warn: If True, logs a warning about the override.
+
+        """
         if warn:
             logger.warning(f"Forcing value of NamedValue {self.name} to {value}")
         self.stored_value = value
@@ -106,6 +156,7 @@ class NamedValue[T](BaseModel, NumericMixin):
 
     @property
     def is_set(self) -> bool:
+        """True if the value has been populated."""
         return self.state is NamedValueState.SET
 
 
