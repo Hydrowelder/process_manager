@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Annotated, Any, NewType, Self
+from enum import StrEnum
+from typing import TYPE_CHECKING, Annotated, Any, Literal, NewType, Self
 
 import numpy as np
 import scipy.stats as stats
@@ -34,7 +34,9 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "BernoulliDistribution",
     "CategoricalDistribution",
+    "Dist",
     "DistName",
+    "DistType",
     "DistributionDict",
     "DistributionList",
     "ExponentialDistribution",
@@ -51,6 +53,35 @@ DistName = NewType("DistName", str)
 
 NOMINAL_RUN_NUM = 0
 """Run number definition where nominal case will be used."""
+
+
+class DistType(StrEnum):
+    NORMAL = "normal"
+    """Normal distribution."""
+
+    UNIFORM = "uniform"
+    """Uniform distribution."""
+
+    CATEGORICAL = "categorical"
+    """Categorical distribution."""
+
+    TRIANGULAR = "triangular"
+    """Triangular distribution."""
+
+    TRUNCATED_NORMAL = "truncated_normal"
+    """Truncated Normal distribution."""
+
+    LOG_NORMAL = "log_normal"
+    """Log Normal distribution."""
+
+    POISSON = "poisson"
+    """Poisson distribution."""
+
+    EXPONENTIAL = "exponential"
+    """Exponential distribution."""
+
+    BERNOULLI = "bernoulli"
+    """Bernoulli distribution."""
 
 
 class Undefined:
@@ -134,6 +165,14 @@ class Distribution[T](BaseModel, ABC):
         """Provides a localized random number generator."""
         return self._rng
 
+    @property
+    @abstractmethod
+    def is_continuous(self) -> bool:
+        """Flag indicating if the distribution is continuous (True) or discrete (False)."""
+        msg = f"This method has not been implemented for {self.__class__.__name__}"
+        logger.error(msg)
+        raise NotImplementedError(msg)
+
     @abstractmethod
     def draw(self, size: int = 1) -> NDArray[Any, T]:
         """Perform a random draw"""
@@ -172,7 +211,7 @@ class Distribution[T](BaseModel, ABC):
         samples = self.sample(size=size)
         nv = NamedValue(name=ValueName(self.name), stored_value=samples)
 
-        dist_dict.update(self)
+        dist_dict.update(self)  # pyright: ignore[reportArgumentType]
         named_value_dict.update(nv)
         return nv
 
@@ -199,6 +238,8 @@ class Distribution[T](BaseModel, ABC):
 
 
 class NormalDistribution(Distribution[float]):
+    """https://en.wikipedia.org/wiki/Normal_distribution"""
+
     mu: float
     """Mean value of distribution."""
 
@@ -206,6 +247,8 @@ class NormalDistribution(Distribution[float]):
     """Standard deviation of distribution. Must be positive."""
 
     _scipy: rv_continuous = PrivateAttr()
+
+    dist_type: Literal[DistType.NORMAL] = DistType.NORMAL
 
     @model_validator(mode="after")
     def validate_sigma(self) -> Self:
@@ -223,6 +266,10 @@ class NormalDistribution(Distribution[float]):
         self._scipy = stats.norm(loc=self.mu, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
+    @property
+    def is_continuous(self) -> Literal[True]:
+        return True
+
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.pdf(x=x)
 
@@ -234,6 +281,8 @@ class NormalDistribution(Distribution[float]):
 
 
 class UniformDistribution(Distribution[float]):
+    """https://en.wikipedia.org/wiki/Continuous_uniform_distribution"""
+
     low: float
     """Minimum value of distribution."""
 
@@ -241,6 +290,8 @@ class UniformDistribution(Distribution[float]):
     """Maximum value of distribution."""
 
     _scipy: rv_continuous = PrivateAttr()
+
+    dist_type: Literal[DistType.UNIFORM] = DistType.UNIFORM
 
     @model_validator(mode="after")
     def validate_low_high(self) -> Self:
@@ -262,6 +313,10 @@ class UniformDistribution(Distribution[float]):
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.uniform(low=self.low, high=self.high, size=size)
 
+    @property
+    def is_continuous(self) -> Literal[True]:
+        return True
+
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.pdf(x=x)
 
@@ -273,18 +328,22 @@ class UniformDistribution(Distribution[float]):
 
 
 class CategoricalDistribution[T](Distribution[T]):
-    choices: Sequence[tuple[T, float]]
+    """https://en.wikipedia.org/wiki/Categorical_distribution"""
+
+    choices: dict[T, float]
     """Choices for the categorical distribution. Tuples have the format (category, probability). This guarantees each category has an associated probability."""
 
     _scipy: rv_discrete = PrivateAttr()
 
+    dist_type: Literal[DistType.CATEGORICAL] = DistType.CATEGORICAL
+
     @property
     def categories(self) -> list[T]:
-        return [t[0] for t in self.choices]
+        return list(self.choices.keys())
 
     @property
     def probabilities(self) -> list[float]:
-        return [t[1] for t in self.choices]
+        return list(self.choices.values())
 
     @model_validator(mode="after")
     def validate_probabilities(self) -> Self:
@@ -306,6 +365,10 @@ class CategoricalDistribution[T](Distribution[T]):
     def draw(self, size: int = 1) -> NDArray[Any, T]:
         return self.rng.choice(a=self.categories, size=size, p=self.probabilities)  # type: ignore
 
+    @property
+    def is_continuous(self) -> Literal[False]:
+        return False
+
     def pdf(self, x: Any) -> float | NDArray[Any, float]:
         """Categorical distributions have no PDF. Did you mean to use pmf?"""
         logger.warning(
@@ -318,9 +381,8 @@ class CategoricalDistribution[T](Distribution[T]):
         Probability Mass Function. Returns the probability of a specific category 'x'.
         """
         try:
-            idx = self.categories.index(x)
-            return self._scipy.pmf(idx)
-        except ValueError:
+            return self.choices[x]
+        except KeyError:
             return 0.0
 
     def cdf(self, x: Any) -> float:
@@ -342,6 +404,8 @@ class CategoricalDistribution[T](Distribution[T]):
 
 
 class TriangularDistribution(Distribution[float]):
+    """https://en.wikipedia.org/wiki/Triangular_distribution"""
+
     low: float
     """Minimum value of distribution."""
 
@@ -352,6 +416,8 @@ class TriangularDistribution(Distribution[float]):
     """Maximum value of distribution."""
 
     _scipy: rv_continuous = PrivateAttr()
+
+    dist_type: Literal[DistType.TRIANGULAR] = DistType.TRIANGULAR
 
     @model_validator(mode="after")
     def validate_logic(self) -> Self:
@@ -374,6 +440,10 @@ class TriangularDistribution(Distribution[float]):
             left=self.low, mode=self.mode, right=self.high, size=size
         )
 
+    @property
+    def is_continuous(self) -> Literal[True]:
+        return True
+
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.pdf(x)
 
@@ -385,31 +455,39 @@ class TriangularDistribution(Distribution[float]):
 
 
 class TruncatedNormalDistribution(Distribution[float]):
+    """https://en.wikipedia.org/wiki/Truncated_normal_distribution"""
+
     mu: float
     """Mean value of distribution."""
 
     sigma: float
     """Standard deviation of distribution."""
 
-    lower: float = float("-inf")
+    low: float = float("-inf")
     """Lower bound of distribution."""
 
-    upper: float = float("inf")
+    high: float = float("inf")
     """Upper bound of distribution."""
 
     _scipy: rv_continuous = PrivateAttr()
 
+    dist_type: Literal[DistType.TRUNCATED_NORMAL] = DistType.TRUNCATED_NORMAL
+
     @model_validator(mode="after")
     def validate_and_setup(self) -> Self:
         # a and b are the number of standard deviations away from the mean
-        a = (self.lower - self.mu) / self.sigma
-        b = (self.upper - self.mu) / self.sigma
+        a = (self.low - self.mu) / self.sigma
+        b = (self.high - self.mu) / self.sigma
         self._scipy = stats.truncnorm(a=a, b=b, loc=self.mu, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
         return self
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy doesn't have a truncnorm generator
         return self._scipy.rvs(size=size, random_state=self.rng)
+
+    @property
+    def is_continuous(self) -> Literal[True]:
+        return True
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.pdf(x)
@@ -422,6 +500,8 @@ class TruncatedNormalDistribution(Distribution[float]):
 
 
 class LogNormalDistribution(Distribution[float]):
+    """https://en.wikipedia.org/wiki/Log-normal_distribution"""
+
     s: float
     """The shape parameter (sigma of the log)"""
 
@@ -430,6 +510,8 @@ class LogNormalDistribution(Distribution[float]):
 
     _scipy: rv_continuous = PrivateAttr()
 
+    dist_type: Literal[DistType.LOG_NORMAL] = DistType.LOG_NORMAL
+
     @model_validator(mode="after")
     def validate_scipy(self) -> Self:
         self._scipy = stats.lognorm(s=self.s, scale=self.scale)  # pyright: ignore[reportAttributeAccessIssue]
@@ -437,6 +519,10 @@ class LogNormalDistribution(Distribution[float]):
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.lognormal(mean=np.log(self.scale), sigma=self.s, size=size)
+
+    @property
+    def is_continuous(self) -> Literal[True]:
+        return True
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.pdf(x)
@@ -449,10 +535,14 @@ class LogNormalDistribution(Distribution[float]):
 
 
 class PoissonDistribution(Distribution[int]):
+    """https://en.wikipedia.org/wiki/Poisson_distribution"""
+
     lam: float
     """Lambda: Average rate of occurrences"""
 
     _scipy: rv_discrete = PrivateAttr()
+
+    dist_type: Literal[DistType.POISSON] = DistType.POISSON
 
     @model_validator(mode="after")
     def validate_scipy(self) -> Self:
@@ -461,6 +551,10 @@ class PoissonDistribution(Distribution[int]):
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.poisson(lam=self.lam, size=size)
+
+    @property
+    def is_continuous(self) -> Literal[False]:
+        return False
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         logger.warning(
@@ -479,10 +573,14 @@ class PoissonDistribution(Distribution[int]):
 
 
 class ExponentialDistribution(Distribution[float]):
+    """https://en.wikipedia.org/wiki/Exponential_distribution"""
+
     lam: float
     """Rate parameter (lambda)."""
 
     _scipy: rv_continuous = PrivateAttr()
+
+    dist_type: Literal[DistType.EXPONENTIAL] = DistType.EXPONENTIAL
 
     @model_validator(mode="after")
     def validate_scipy(self) -> Self:
@@ -491,6 +589,10 @@ class ExponentialDistribution(Distribution[float]):
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.exponential(scale=1 / self.lam, size=size)
+
+    @property
+    def is_continuous(self) -> Literal[True]:
+        return True
 
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         return self._scipy.pdf(x)
@@ -503,10 +605,14 @@ class ExponentialDistribution(Distribution[float]):
 
 
 class BernoulliDistribution(Distribution[bool]):
+    """https://en.wikipedia.org/wiki/Bernoulli_distribution"""
+
     p: float
     """Probability of success (0.0 to 1.0)."""
 
     _scipy: rv_discrete = PrivateAttr()
+
+    dist_type: Literal[DistType.BERNOULLI] = DistType.BERNOULLI
 
     @model_validator(mode="after")
     def validate_probability(self) -> Self:
@@ -525,6 +631,10 @@ class BernoulliDistribution(Distribution[bool]):
         # np.random doesn't have a 'bernoulli', so we use binomial with n=1
         return self.rng.binomial(n=1, p=self.p, size=size)
 
+    @property
+    def is_continuous(self) -> Literal[False]:
+        return False
+
     def pdf(self, x: float | np.ndarray) -> float | np.ndarray:
         logger.warning(
             "Discrete distributions use pmf, not pdf. Using pmf method instead."
@@ -541,7 +651,21 @@ class BernoulliDistribution(Distribution[bool]):
         return self._scipy.ppf(q)
 
 
-class DistributionDict(BaseDict[Distribution[Any]]):
+Dist = Annotated[
+    NormalDistribution
+    | UniformDistribution
+    | CategoricalDistribution
+    | TriangularDistribution
+    | TruncatedNormalDistribution
+    | LogNormalDistribution
+    | PoissonDistribution
+    | ExponentialDistribution
+    | BernoulliDistribution,
+    Field(discriminator="dist_type"),
+]
+
+
+class DistributionDict(BaseDict[Dist]):
     """Dictionary specifically for sampled results."""
 
     @property
@@ -555,7 +679,7 @@ class DistributionDict(BaseDict[Distribution[Any]]):
                 dist.run_num = run_num
 
 
-class DistributionList(BaseList[Distribution[Any]]):
+class DistributionList(BaseList[Dist]):
     """List specifically for distributions."""
 
     @property
@@ -592,16 +716,16 @@ if __name__ == "__main__":
 
     cat_dist = CategoricalDistribution[Blood](
         name=DistName("blood_type"),
-        choices=[
-            (Blood.O_P, 0.36),
-            (Blood.O_N, 0.14),
-            (Blood.A_P, 0.28),
-            (Blood.A_N, 0.08),
-            (Blood.B_P, 0.08),
-            (Blood.B_N, 0.03),
-            (Blood.AB_P, 0.02),
-            (Blood.AB_N, 0.01),
-        ],
+        choices={
+            Blood.O_P: 0.36,
+            Blood.O_N: 0.14,
+            Blood.A_P: 0.28,
+            Blood.A_N: 0.08,
+            Blood.B_P: 0.08,
+            Blood.B_N: 0.03,
+            Blood.AB_P: 0.02,
+            Blood.AB_N: 0.01,
+        },
         seed=42,
         nominal=Blood.O_P,
     )

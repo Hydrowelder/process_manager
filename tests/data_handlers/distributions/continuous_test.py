@@ -46,7 +46,7 @@ def test_truncated_normal_bounds():
     mu, sigma = 100, 10
     lower, upper = 95, 105
     dist = TruncatedNormalDistribution(
-        name=DistName("clamped"), mu=mu, sigma=sigma, lower=lower, upper=upper
+        name=DistName("clamped"), mu=mu, sigma=sigma, low=lower, high=upper
     )
 
     samples = dist.sample(1000)
@@ -62,7 +62,7 @@ def test_truncated_normal_extreme_bounds():
     """Verify it handles a mean that is outside the bounds."""
     # Mean is 0, but we only allow samples between 10 and 20
     dist = TruncatedNormalDistribution(
-        name=DistName("offset"), mu=0, sigma=1, lower=10, upper=20
+        name=DistName("offset"), mu=0, sigma=1, low=10, high=20
     )
     samples = dist.sample(100)
     assert np.all(samples >= 10)
@@ -104,7 +104,7 @@ def test_exponential_properties():
     "dist_instance",
     [
         TruncatedNormalDistribution(
-            name=DistName("tn"), mu=50, sigma=5, lower=40, upper=60
+            name=DistName("tn"), mu=50, sigma=5, low=40, high=60
         ),
         LogNormalDistribution(name=DistName("ln"), s=0.5, scale=10),
         ExponentialDistribution(name=DistName("ex"), lam=2.0),

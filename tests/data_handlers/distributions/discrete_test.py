@@ -11,7 +11,7 @@ from process_manager import (
 
 def test_categorical_pmf_cdf():
     """Verify Categorical logic for non-numeric types."""
-    choices = [("Low", 0.2), ("Medium", 0.5), ("High", 0.3)]
+    choices = {"Low": 0.2, "Medium": 0.5, "High": 0.3}
     dist = CategoricalDistribution(name=DistName("risk"), choices=choices)
 
     assert dist.pmf("Low") == 0.2
