@@ -51,8 +51,8 @@ __all__ = [
 DistName = NewType("DistName", str)
 """Alias of string. Used to type hint a distribution."""
 
-NOMINAL_RUN_NUM = 0
-"""Run number definition where nominal case will be used."""
+NOMINAL_TRIAL_NUM = 0
+"""Trial number definition where nominal case will be used."""
 
 
 class DistType(StrEnum):
@@ -120,13 +120,13 @@ class Distribution[T](BaseModel, ABC):
     seed: int | None = None
     """Seed of the distribution.
 
-    Leave as None or omit to use a random seed. If the seed is not None, the specified seed will be salted with the name and run_number attributes to add randomness. This allows you to use the same seed for multiple distributions while also being able to simply serialize and deserialize the distribution. See the `validate_seed` validator method for how the seed is hashed.
+    Leave as None or omit to use a random seed. If the seed is not None, the specified seed will be salted with the name and trial_number attributes to add randomness. This allows you to use the same seed for multiple distributions while also being able to simply serialize and deserialize the distribution. See the `validate_seed` validator method for how the seed is hashed.
     """
 
     nominal: T | None | SerializableUndefined = Field(default=UNDEFINED)
-    """Value the distribution should take if the run_number attribute is equal to 0."""
+    """Value the distribution should take if the trial_number attribute is equal to 0."""
 
-    _run_num: int = PrivateAttr(default=NOMINAL_RUN_NUM)
+    _trial_num: int = PrivateAttr(default=NOMINAL_TRIAL_NUM)
     """Run number for sampling from the distribution. This is used to salt the seed (if specified)."""
 
     _rng: np.random.Generator = PrivateAttr()
@@ -135,9 +135,9 @@ class Distribution[T](BaseModel, ABC):
     def refresh_seed(self) -> None:
         if self.seed is not None:
             # combine name and run number to salt
-            name_to_salt = f"{self.name}_{self._run_num}"
+            name_to_salt = f"{self.name}_{self._trial_num}"
 
-            # generate a repeatable salt for the seed, name, and run_number
+            # generate a repeatable salt for the seed, name, and trial_number
             salt = int(hashlib.md5(name_to_salt.encode()).hexdigest(), 16)
             local_seed = (self.seed + salt) % (2**32)
 
@@ -152,13 +152,13 @@ class Distribution[T](BaseModel, ABC):
         return self
 
     @property
-    def run_num(self) -> int:
+    def trial_num(self) -> int:
         """Run number for sampling from the distribution. This is used to salt the seed (if specified)."""
-        return self._run_num
+        return self._trial_num
 
-    @run_num.setter
-    def run_num(self, new: int) -> None:
-        self._run_num = new
+    @trial_num.setter
+    def trial_num(self, new: int) -> None:
+        self._trial_num = new
         self.refresh_seed()
 
     @property
@@ -183,7 +183,7 @@ class Distribution[T](BaseModel, ABC):
 
     def sample(self, size: int = 1) -> NDArray[Any, T]:
         """The core sampling logic for the distribution."""
-        if self._run_num == NOMINAL_RUN_NUM and self.nominal is not UNDEFINED:
+        if self._trial_num == NOMINAL_TRIAL_NUM and self.nominal is not UNDEFINED:
             return np.full(size, self.nominal)
         else:
             return self.draw(size=size)
@@ -207,13 +207,25 @@ class Distribution[T](BaseModel, ABC):
         dist_dict: DistributionDict,
         named_value_dict: NamedValueDict,
         size: int = 1,
+        force: bool = False,
+        warn: bool = True,
     ) -> NamedValue[NDArray[Any, T]]:
         """Samples from the distribution and registers the result."""
+        if self.name in named_value_dict and not force:
+            return named_value_dict[self.name]
+        elif self.name in named_value_dict and force and warn:
+            logger.warning(
+                f"NamedValue {self.name} already exists in named_value_list. Overwriting!"
+            )
+
         samples = self.sample(size=size)
         nv = NamedValue(name=ValueName(self.name), stored_value=samples)
 
         dist_dict.update(self)  # pyright: ignore[reportArgumentType]
-        named_value_dict.update(nv)
+        if force:
+            named_value_dict.force_update(nv, warn=warn)
+        else:
+            named_value_dict.update(nv)
         return nv
 
     @abstractmethod
@@ -235,7 +247,7 @@ class Distribution[T](BaseModel, ABC):
 
     @property
     def is_nominal(self) -> bool:
-        return self.run_num == NOMINAL_RUN_NUM and self.has_nominal
+        return self.trial_num == NOMINAL_TRIAL_NUM and self.has_nominal
 
 
 class NormalDistribution(Distribution[float]):
@@ -256,7 +268,7 @@ class NormalDistribution(Distribution[float]):
         3. [Wikipedia](https://en.wikipedia.org/wiki/Normal_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/normal.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/normal.png" width="600" />
 
     """
 
@@ -318,7 +330,7 @@ class UniformDistribution(Distribution[float]):
         3. [Wikipedia](https://en.wikipedia.org/wiki/Continuous_uniform_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/uniform.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/uniform.png" width="600" />
 
     """
 
@@ -391,7 +403,7 @@ class CategoricalDistribution[T](Distribution[T]):
         3. [Wikipedia](https://en.wikipedia.org/wiki/Categorical_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/categorical.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/categorical.png" width="600" />
 
     """
 
@@ -486,7 +498,7 @@ class TriangularDistribution(Distribution[float]):
         3. [Wikipedia](https://en.wikipedia.org/wiki/Triangular_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/triangular.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/triangular.png" width="600" />
 
     """
 
@@ -555,7 +567,7 @@ class TruncatedNormalDistribution(Distribution[float]):
         2. [Wikipedia](https://en.wikipedia.org/wiki/Truncated_normal_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/truncated_normal.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/truncated_normal.png" width="600" />
 
     """
 
@@ -619,7 +631,7 @@ class LogNormalDistribution(Distribution[float]):
         3. [Wikipedia](https://en.wikipedia.org/wiki/Log-normal_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/log_normal.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/log_normal.png" width="600" />
 
     """
 
@@ -673,7 +685,7 @@ class PoissonDistribution(Distribution[int]):
         3. [Wikipedia](https://en.wikipedia.org/wiki/Poisson_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/poisson.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/poisson.png" width="600" />
 
     """
 
@@ -731,7 +743,7 @@ class ExponentialDistribution(Distribution[float]):
         3. [Wikipedia](https://en.wikipedia.org/wiki/Exponential_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/exponential.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/exponential.png" width="600" />
 
     """
 
@@ -783,7 +795,7 @@ class BernoulliDistribution(Distribution[bool]):
         3. [Wikipedia](https://en.wikipedia.org/wiki/Bernoulli_distribution)
 
     Note:
-        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/bernoulli.png" width="400" />
+        <img src="https://raw.githubusercontent.com/Hydrowelder/process_manager/refs/heads/main/docs/assets/distributions/bernoulli.png" width="600" />
 
     """
 
@@ -853,10 +865,10 @@ class DistributionDict(BaseDict[Dist]):
         """Converts the DistributionDict to a DistributionList."""
         return DistributionList(list(self.values()))
 
-    def set_run_nums(self, run_num: int) -> None:
+    def set_trial_nums(self, trial_num: int) -> None:
         for dist in self.values():
-            if dist.run_num != run_num:
-                dist.run_num = run_num
+            if dist.trial_num != trial_num:
+                dist.trial_num = trial_num
 
 
 class DistributionList(BaseList[Dist]):
@@ -869,10 +881,10 @@ class DistributionList(BaseList[Dist]):
         d.update_many(self.root)
         return d
 
-    def set_run_nums(self, run_num: int) -> None:
+    def set_trial_nums(self, trial_num: int) -> None:
         for dist in self:
-            if dist.run_num != run_num:
-                dist.run_num = run_num
+            if dist.trial_num != trial_num:
+                dist.trial_num = trial_num
 
 
 if __name__ == "__main__":

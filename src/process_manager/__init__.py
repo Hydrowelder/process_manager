@@ -1,4 +1,6 @@
+from .base_collections import BaseDict, BaseList
 from .distribution import (
+    NOMINAL_TRIAL_NUM,
     BernoulliDistribution,
     CategoricalDistribution,
     DistName,
@@ -23,6 +25,9 @@ from .named_value import (
 )
 
 __all__ = [
+    "NOMINAL_TRIAL_NUM",
+    "BaseDict",
+    "BaseList",
     "BernoulliDistribution",
     "CategoricalDistribution",
     "DistName",

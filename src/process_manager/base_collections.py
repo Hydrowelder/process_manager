@@ -9,6 +9,8 @@ from pydantic import Field, RootModel
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["BaseDict", "BaseList"]
+
 
 class BaseDict[T](RootModel[dict[str, T]]):
     root: dict[str, T] = Field(default_factory=dict)
