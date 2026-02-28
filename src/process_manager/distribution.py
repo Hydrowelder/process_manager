@@ -120,7 +120,16 @@ class Distribution[T](BaseModel, ABC):
     seed: int | None = None
     """Seed of the distribution.
 
-    Leave as None or omit to use a random seed. If the seed is not None, the specified seed will be salted with the name and trial_number attributes to add randomness. This allows you to use the same seed for multiple distributions while also being able to simply serialize and deserialize the distribution. See the `validate_seed` validator method for how the seed is hashed.
+    Leave as None or omit to use a random seed. If the seed is not None, the specified seed will be salted with the name and trial_num attributes to add randomness. This allows you to use the same seed for multiple distributions while also being able to simply serialize and deserialize the distribution. See the `validate_seed` validator method for how the seed is hashed.
+
+    Note:
+        | Salt        | Functional Purpose       | Description                                                                                                                                                                           |
+        |:------------|:-------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+        | `seed`      | **Campaign Entropy**     | Controls the broad "global" cycle. Change this to generate a completely new set of results for the same analysis (e.g., using a date-based seed for a daily batch).                   |
+        | `name`      | **Parameter Decoupling** | Ensures unique draws for different parameters. Without this, two distributions with the same config (e.g., an `x` and `y` center of gravity) would produce identical, coupled values. |
+        | `trial_num` | **Iteration Variance**   | Provides a unique draw for each Monte Carlo trial. This ensures that every individual simulation trial receives a unique value from the dispersion.                                   |
+
+    Clear as mud?
     """
 
     nominal: T | None | SerializableUndefined = Field(default=UNDEFINED)
@@ -131,6 +140,14 @@ class Distribution[T](BaseModel, ABC):
 
     _rng: np.random.Generator = PrivateAttr()
     """Random number generator."""
+
+    def with_seed(self, seed: int | None) -> Self:
+        self.seed = seed
+        return self
+
+    def with_trial_num(self, trial_num: int) -> Self:
+        self.trial_num = trial_num
+        return self
 
     def refresh_seed(self) -> None:
         if self.seed is not None:
