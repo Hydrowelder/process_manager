@@ -1,6 +1,8 @@
 import numpy as np
 
 from process_manager import DistName, NormalDistribution
+from process_manager.distribution import DistributionDict
+from process_manager.named_value import NamedValueDict
 
 
 def test_distribution_seeding_and_salting():
@@ -34,3 +36,16 @@ def test_serialization_roundtrip():
     assert new_dist.mu == dist.mu
     assert new_dist.nominal == dist.nominal
     assert np.array_equal(dist.sample(5), new_dist.sample(5))
+
+
+def test_serialization_roundtrip_dict():
+    """Verify Pydantic serialization preserves state."""
+    named_dict = NamedValueDict()
+    dist_dict = DistributionDict()
+    NormalDistribution(name=DistName("test"), mu=10, sigma=2, seed=123).update_dicts(
+        dist_dict=dist_dict, named_value_dict=named_dict, size=2
+    )
+
+    json_data = named_dict.model_dump_json()
+
+    _new_dist_dict = NamedValueDict.model_validate_json(json_data)
