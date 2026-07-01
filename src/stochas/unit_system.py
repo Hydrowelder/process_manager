@@ -9,7 +9,7 @@ report concrete units instead of abstract Pint dimensions.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, cast, overload
 
 import pint
 from pydantic import BaseModel, ConfigDict, Field
@@ -82,6 +82,13 @@ class UnitDescriptor(BaseModel):
     def __mul__(self, other: Any) -> Any: ...
     def __mul__(self, other: Any) -> Any:
         if isinstance(other, UnitDescriptor):
+            if self.offset != 0.0 and other.offset != 0.0:
+                raise ValueError(
+                    f"Cannot multiply '{self.name}' (offset={self.offset}) by "
+                    f"'{other.name}' (offset={other.offset}): the product of two "
+                    "offset units has no unique affine conversion. "
+                    "Convert both to absolute units (e.g. kelvin) first."
+                )
             scale = (
                 self.scale * other.scale
                 if self.scale is not None and other.scale is not None
@@ -109,6 +116,13 @@ class UnitDescriptor(BaseModel):
     def __truediv__(self, other: Any) -> Any: ...
     def __truediv__(self, other: Any) -> Any:
         if isinstance(other, UnitDescriptor):
+            if self.offset != 0.0 and other.offset != 0.0:
+                raise ValueError(
+                    f"Cannot divide '{self.name}' (offset={self.offset}) by "
+                    f"'{other.name}' (offset={other.offset}): the ratio of two "
+                    "offset units has no unique affine conversion. "
+                    "Convert both to absolute units (e.g. kelvin) first."
+                )
             scale = (
                 self.scale / other.scale
                 if self.scale is not None and other.scale is not None
@@ -127,6 +141,12 @@ class UnitDescriptor(BaseModel):
         return other / float(self)
 
     def __pow__(self, exp: int | float) -> UnitDescriptor:
+        if self.offset != 0.0 and exp not in (0, 1):
+            raise ValueError(
+                f"Cannot raise '{self.name}' (offset={self.offset}) to power {exp}: "
+                "powers of offset units have no affine representation. "
+                "Convert to an absolute unit (e.g. kelvin) first."
+            )
         # wrap compound names in parens so e.g. (m / s) ** 2 stays unambiguous
         base = f"({self.name})" if " " in self.name else self.name
         scale = self.scale**exp if self.scale is not None else None
@@ -206,6 +226,22 @@ class UnitSystem(BaseModel):
         """Inch-slinch-second system (mechanical dimensions only). Coherent force unit: lbf (1 lbf = 1 slinch*in/s^2; 1 slinch = 12 slugs). Extend with `model_copy` to add thermal or electromagnetic base units."""
         return cls(length="in", mass="slinch")
 
+    @classmethod
+    def fff(cls) -> UnitSystem:
+        """
+        The **only** unit system worth knowing.
+
+        Furlong-Firkin-Fortnight system (mechanical dimensions only). The firkin is a firkin of butter (56 lb); the coherent force unit is 1 firkin*furlong/fortnight^2 ≈ 3.5 nN.
+
+        <img src="https://i.kym-cdn.com/photos/images/original/002/008/781/65d.png" alt="FFF Users" width="300">
+        """
+        logger.debug("My god, you're actually using this?")
+
+        # Pint has no built-in firkin (for some reason), so it's registered here.
+        # Since this is a joke I dont care if this breaks something.
+        ureg.define("firkin = 56 * pound")
+        return cls(length="furlong", mass="firkin", time="fortnight")
+
     def _descriptor_for(self, name: str, unit: Any) -> UnitDescriptor:
         """Builds a UnitDescriptor from a pre-parsed Pint unit object, resolving scale and offset against this unit system."""
         dim_dict = dict(ureg.get_dimensionality(unit))
@@ -279,16 +315,16 @@ class UnitSystem(BaseModel):
 
     def base_unit_for(self, unit_name: str) -> UnitDescriptor | None:
         """
-        Returns a scale=1, offset=0 `UnitDescriptor` for the model base unit that shares the same Pint dimension as `unit_name`, or `None` for compound or unrecognized units.
+        Returns a scale=1, offset=0 `UnitDescriptor` for the model's base expression that matches the dimensionality of `unit_name`. For simple dimensions (length, mass, etc.) this is the single configured base unit; for compound units (velocity, force, etc.) it is a compound expression built from the configured base units. Returns `None` for dimensionless or unrecognized units, or when a required dimension is not configured.
 
         Used after unit conversion to tag the result with the concrete model base unit rather than leaving `unit=None`.
 
         Example::
 
             us = UnitSystem.si()
-            us.base_unit_for("inch")   # -> UnitDescriptor("m", scale=1.0, offset=0.0)
-            us.base_unit_for("degF")   # -> UnitDescriptor("K", scale=1.0, offset=0.0)
-            us.base_unit_for("newton") # -> None (compound unit)
+            us.base_unit_for("inch")          # -> UnitDescriptor("m", scale=1.0, offset=0.0)
+            us.base_unit_for("degF")          # -> UnitDescriptor("K", scale=1.0, offset=0.0)
+            us.base_unit_for("inch / second") # -> UnitDescriptor("m / s", scale=1.0, offset=0.0)
         """
         try:
             pint_unit = ureg.parse_units(unit_name)
@@ -296,14 +332,10 @@ class UnitSystem(BaseModel):
         except Exception:
             return None
 
-        if len(dim_dict) != 1:
+        if not dim_dict:  # dimensionless
             return None
 
-        dim_key, exp = next(iter(dim_dict.items()))
-        if exp != 1:
-            return None
-
-        base_name = {
+        base_unit_names = {
             "[length]": self.length,
             "[mass]": self.mass,
             "[time]": self.time,
@@ -311,12 +343,38 @@ class UnitSystem(BaseModel):
             "[current]": self.current,
             "[substance]": self.amount,
             "[luminosity]": self.luminosity,
-        }.get(dim_key)
+        }
 
-        if base_name is None:
-            return None
+        # split into positive (numerator) and negative (denominator) exponents and
+        # build a compound name like "m / s" or "kg * m / s ** 2"
+        numerator: list[str] = []
+        denominator: list[str] = []
+        for dim_key, exp in dim_dict.items():
+            base_name = base_unit_names.get(dim_key)
+            if base_name is None:
+                return None
+            e = float(
+                cast(Any, exp)
+            )  # Pint's Scalar satisfies __float__ at runtime; cast(Any) avoids stub gaps
+            if e == 1.0:
+                numerator.append(base_name)
+            elif e == -1.0:
+                denominator.append(base_name)
+            elif e > 0:
+                n: int | float = int(e) if e == int(e) else e
+                numerator.append(f"{base_name} ** {n}")
+            else:
+                n = int(-e) if -e == int(-e) else -e
+                denominator.append(f"{base_name} ** {n}")
 
-        return UnitDescriptor(name=base_name, scale=1.0, offset=0.0)
+        if numerator and denominator:
+            name = " * ".join(numerator) + " / " + " * ".join(denominator)
+        elif numerator:
+            name = " * ".join(numerator)
+        else:
+            name = "1 / " + " * ".join(denominator)
+
+        return UnitDescriptor(name=name, scale=1.0, offset=0.0)
 
 
 if __name__ == "__main__":

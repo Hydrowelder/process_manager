@@ -39,6 +39,27 @@ Attribute access on a `UnitSystem` resolves any [Pint](https://pint.readthedocs.
 
 ---
 
+## Constructing Unit Descriptors
+
+There are four ways to get a `UnitDescriptor` from a `UnitSystem`:
+
+| Approach              | Example                                        | When to use                                                       |
+|:----------------------|:-----------------------------------------------|:------------------------------------------------------------------|
+| Attribute             | `us.meter`, `us.inch`, `us.pound`              | any Pint-recognized unit name                                     |
+| Underscore compound   | `us.meter_per_second`, `us.kilometer_per_hour` | Pint already knows the compound name                              |
+| Descriptor arithmetic | `us.m / us.s`, `us.m / us.s**2`, `us.m**2`     | any combination you can express with `*`, `/`, `**`               |
+| String subscript      | `us["m/s"]`, `us["inch/second"]`               | expressions with slashes or `**` that can't be Python identifiers |
+
+```python
+--8<-- "docs/user-guides/unit_system.py:construct"
+```
+
+!!! note
+
+    Offset units (`degF`, `degC`) follow the same four approaches but have restrictions on arithmetic: raising to a power or multiplying/dividing two offset units raises `ValueError` because the result has no unique affine representation. Convert to an absolute unit first (e.g. `us.kelvin` or `us.rankine`) before composing.
+
+---
+
 ## Using Unit Descriptors in Expressions
 
 `UnitDescriptor` supports the usual arithmetic operators, so it slots directly into array expressions. Multiply a value **by** the descriptor to convert it from that unit into the model's base unit:
