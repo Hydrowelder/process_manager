@@ -67,8 +67,13 @@ class UnitDescriptor(BaseModel):
         return self.name
 
     def __repr__(self) -> str:
-        return f"UnitDescriptor({self.name!r}, scale={self.scale!r}, offset={self.offset!r})"
+        scale_str = f"{self.scale:_}" if self.scale is not None else "None"
+        return (
+            f"UnitDescriptor({self.name!r}, scale={scale_str}, offset={self.offset:_})"
+        )
 
+    @overload
+    def __mul__(self, other: UnitDescriptor) -> UnitDescriptor: ...
     @overload
     def __mul__(self, other: int | float) -> float: ...
     @overload
@@ -76,6 +81,13 @@ class UnitDescriptor(BaseModel):
     @overload
     def __mul__(self, other: Any) -> Any: ...
     def __mul__(self, other: Any) -> Any:
+        if isinstance(other, UnitDescriptor):
+            scale = (
+                self.scale * other.scale
+                if self.scale is not None and other.scale is not None
+                else None
+            )
+            return UnitDescriptor(name=f"{self.name} * {other.name}", scale=scale)
         return other * float(self) + self.offset
 
     @overload
@@ -88,12 +100,21 @@ class UnitDescriptor(BaseModel):
         return other * float(self) + self.offset
 
     @overload
+    def __truediv__(self, other: UnitDescriptor) -> UnitDescriptor: ...
+    @overload
     def __truediv__(self, other: int | float) -> float: ...
     @overload
     def __truediv__(self, other: np.ndarray) -> np.ndarray: ...
     @overload
     def __truediv__(self, other: Any) -> Any: ...
     def __truediv__(self, other: Any) -> Any:
+        if isinstance(other, UnitDescriptor):
+            scale = (
+                self.scale / other.scale
+                if self.scale is not None and other.scale is not None
+                else None
+            )
+            return UnitDescriptor(name=f"{self.name} / {other.name}", scale=scale)
         return float(self) / other
 
     @overload
@@ -104,6 +125,12 @@ class UnitDescriptor(BaseModel):
     def __rtruediv__(self, other: Any) -> Any: ...
     def __rtruediv__(self, other: Any) -> Any:
         return other / float(self)
+
+    def __pow__(self, exp: int | float) -> UnitDescriptor:
+        # wrap compound names in parens so e.g. (m / s) ** 2 stays unambiguous
+        base = f"({self.name})" if " " in self.name else self.name
+        scale = self.scale**exp if self.scale is not None else None
+        return UnitDescriptor(name=f"{base} ** {exp}", scale=scale)
 
 
 class UnitSystem(BaseModel):
@@ -179,21 +206,8 @@ class UnitSystem(BaseModel):
         """Inch-slinch-second system (mechanical dimensions only). Coherent force unit: lbf (1 lbf = 1 slinch*in/s^2; 1 slinch = 12 slugs). Extend with `model_copy` to add thermal or electromagnetic base units."""
         return cls(length="in", mass="slinch")
 
-    def __getattr__(self, name: str) -> UnitDescriptor:
-        if name.startswith("_"):
-            msg = (
-                f"{name!r} is not a recognized since it starts with an underscore ('_')"
-            )
-            logger.error(msg)
-            raise AttributeError(msg)
-
-        try:
-            unit = ureg.parse_units(name)
-        except Exception:
-            msg = f"{name!r} is not a recognized Pint unit and is not an attribute of UnitSystem"
-            logger.error(msg)
-            raise AttributeError(msg) from None
-
+    def _descriptor_for(self, name: str, unit: Any) -> UnitDescriptor:
+        """Builds a UnitDescriptor from a pre-parsed Pint unit object, resolving scale and offset against this unit system."""
         dim_dict = dict(ureg.get_dimensionality(unit))
 
         # map Pint dimension strings to the configured base unit name (None entries are skipped)
@@ -234,6 +248,34 @@ class UnitSystem(BaseModel):
         offset = float(ureg.Quantity(0, unit).to(model_unit).magnitude)
         scale = float(ureg.Quantity(1, unit).to(model_unit).magnitude) - offset
         return UnitDescriptor(name=name, scale=scale, offset=offset)
+
+    def __getattr__(self, name: str) -> UnitDescriptor:
+        if name.startswith("_"):
+            msg = (
+                f"{name!r} is not a recognized since it starts with an underscore ('_')"
+            )
+            logger.error(msg)
+            raise AttributeError(msg)
+
+        try:
+            unit = ureg.parse_units(name)
+        except Exception:
+            msg = f"{name!r} is not a recognized Pint unit and is not an attribute of UnitSystem"
+            logger.error(msg)
+            raise AttributeError(msg) from None
+
+        return self._descriptor_for(name, unit)
+
+    def __getitem__(self, unit_str: str) -> UnitDescriptor:
+        """Access a unit by any Pint expression string, e.g. `us["m/s"]`, `us["m/s**2"]`, `us["inch/second"]`. Unlike attribute access, the string can contain `/`, `**`, spaces, and other characters that are not valid Python identifiers."""
+        try:
+            unit = ureg.parse_units(unit_str)
+        except Exception:
+            msg = f"{unit_str!r} is not a recognized Pint unit expression"
+            logger.error(msg)
+            raise KeyError(unit_str) from None
+
+        return self._descriptor_for(unit_str, unit)
 
     def base_unit_for(self, unit_name: str) -> UnitDescriptor | None:
         """
@@ -278,4 +320,7 @@ class UnitSystem(BaseModel):
 
 
 if __name__ == "__main__":
+    us = UnitSystem.si()
     breakpoint()
+    in_per_second = us.inch / (us.second**2)
+    inch_per_second = us["inch / s ** 2"]
