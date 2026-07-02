@@ -22,6 +22,12 @@ __all__ = ["UnitDescriptor", "UnitSystem", "ureg"]
 logger = logging.getLogger(__name__)
 
 ureg = pint.UnitRegistry()
+# Pint has no built-in firkin, so register it once; guard prevents the
+# redefinition warning from firing on every subsequent fff() call.
+try:
+    ureg.Unit("firkin")
+except pint.errors.UndefinedUnitError:
+    ureg.define("firkin = 56 * pound")
 
 
 class UnitDescriptor(BaseModel):
@@ -237,9 +243,6 @@ class UnitSystem(BaseModel):
         """
         logger.debug("My god, you're actually using this?")
 
-        # Pint has no built-in firkin (for some reason), so it's registered here.
-        # Since this is a joke I dont care if this breaks something.
-        ureg.define("firkin = 56 * pound")
         return cls(length="furlong", mass="firkin", time="fortnight")
 
     def _descriptor_for(self, name: str, unit: Any) -> UnitDescriptor:
