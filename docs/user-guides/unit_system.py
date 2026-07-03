@@ -37,6 +37,33 @@ pos_m = us.inch * np.array([1.0, 2.0, 3.0])
 print(f"pos: {pos_m} m")  # [0.0254, 0.0508, 0.0762]
 # ---8<--- [end: multiply]
 
+# ---8<--- [start: construct]
+us = UnitSystem.si()
+
+# attribute access: any Pint-recognized unit name
+assert float(us.meter) == 1.0
+assert float(us.inch) == 0.0254
+assert abs(float(us.pound) - 0.45359237) < 1e-9  # kg per pound
+
+# Pint underscore names for compound units Pint already knows
+assert float(us.meter_per_second) == 1.0
+assert float(us.kilometer_per_hour) == 1 / 3.6  # km/h -> m/s
+
+# descriptor arithmetic: *, /, ** compose name and scale
+velocity = us.m / us.s  # UnitDescriptor("m / s",      scale=1.0)
+accel = us.m / us.s**2  # UnitDescriptor("m / s ** 2", scale=1.0)
+area = us.m**2  # UnitDescriptor("m ** 2",     scale=1.0)
+
+# scales compose for non-SI too
+inch_per_sec = us.inch / us.second  # scale = 0.0254 / 1.0 = 0.0254
+assert abs(float(inch_per_sec) - 0.0254) < 1e-12
+
+# string subscript: any Pint expression (slashes, **, spaces all OK)
+assert float(us["m/s"]) == 1.0
+assert float(us["inch/second"]) == 0.0254  # us.inch_per_second raises AttributeError
+assert float(us["m/s**2"]) == 1.0
+# ---8<--- [end: construct]
+
 # ---8<--- [start: dist_unit]
 us = UnitSystem.si()
 
@@ -64,29 +91,29 @@ assert float(arm_length.unit) == 1.0  # scale=1 means no further conversion need
 # ---8<--- [start: design_unit]
 us = UnitSystem.si()
 
-model = stochas.StochasBase(us=us)  # can also assign directly
+model = stochas.StochasBase(us=us)
 
-link_width = stochas.DesignFloat(
-    name=stochas.ValueName("link_width"),
+link_velocity = stochas.DesignFloat(
+    name=stochas.ValueName("link_velocity"),
     low=0.5,
     high=4.0,
-    stored_value=2.0,  # declared in inches
-    unit=us.inch,
+    stored_value=2.0,  # declared in inches per second
+    unit=us.inch / us.second,  # combine units with /, *, or **
 )
 
-width_m = model.sample_design(
-    link_width,
+vel_m_per_s = model.sample_design(
+    link_velocity,
     convert_units=True,  # also defaults to True
 )
-assert abs(width_m - 0.0508) < 1e-9  # 2.0 in * 0.0254 m/in
+assert abs(vel_m_per_s - 0.0508) < 1e-9  # 2.0 in/s * 0.0254 m/in = 0.0508 m/s
 
-# model.design["link_width"] keeps the original declared unit (inch)
-assert str(model.design["link_width"].unit) == "inch"
+# model.design keeps the original declared unit
+assert str(model.design["link_velocity"].unit) == "inch / second"
 
-# model.named["link_width"] holds the converted value tagged with the model base unit
-named_unit = model.named["link_width"].unit
+# model.named holds the converted value tagged with the model's compound base unit
+named_unit = model.named["link_velocity"].unit
 assert named_unit is not None
-assert str(named_unit) == "m"  # value is in meters; unit says so
+assert str(named_unit) == "m / s"  # value is in meters per second; unit says so
 # ---8<--- [end: design_unit]
 
 # ---8<--- [start: serialization]
@@ -95,26 +122,26 @@ us = UnitSystem.si()
 model = stochas.StochasBase(us=us)
 
 dist = stochas.NormalDistribution(
-    name=stochas.DistName("radius"),
+    name=stochas.DistName("goofy_velocity"),
     mu=10.0,
     sigma=0.5,
-    unit=us.inch,
+    unit=us["furlong / fortnight"],  # string subscript accepts any Pint expression
 )
 
 model.dists.update(dist)
 
 data = model.model_dump()
 
-# the unit descriptor serializes as {"name": "inch"} (scale/offset are excluded)
-assert data["dists"]["radius"]["unit"] == {"name": "inch"}
+# the unit descriptor serializes as {"name": "furlong / fortnight"} (scale/offset are excluded)
+assert data["dists"]["goofy_velocity"]["unit"] == {"name": "furlong / fortnight"}
 
-# when u is present in the JSON, validation restores all scale/offset values automatically
+# when us is present in the JSON, validation restores all scale/offset values automatically
 restored_model = stochas.StochasBase.model_validate(data)
-radius_unit = restored_model.dists["radius"].unit
-assert radius_unit is not None
-assert radius_unit.scale == float(us.inch)
+goofy_unit = restored_model.dists["goofy_velocity"].unit
+assert goofy_unit is not None and goofy_unit.scale
+assert abs(goofy_unit.scale - float(us["furlong / fortnight"])) < 1e-12
 
-# if you serialize without u, call with_unit_system() after loading
+# if you serialize without us, call with_unit_system() after loading
 unitless_model = stochas.StochasBase()
 unitless_model.dists.update(
     stochas.NormalDistribution(

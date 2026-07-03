@@ -234,3 +234,206 @@ def test_unit_descriptor_offset_applies_in_rmul() -> None:
     d = UnitDescriptor(name="degF", scale=5 / 9, offset=255.3722222)
     assert 32.0 * d == pytest.approx(273.15, rel=1e-4)
     assert 212.0 * d == pytest.approx(373.15, rel=1e-4)
+
+
+def test_unit_descriptor_div_two_descriptors_returns_descriptor() -> None:
+    """Dividing two UnitDescriptors produces a compound UnitDescriptor."""
+    us = UnitSystem.si()
+    velocity = us.m / us.s
+    assert isinstance(velocity, UnitDescriptor)
+    assert str(velocity) == "m / s"
+    assert float(velocity) == pytest.approx(1.0)
+
+
+def test_unit_descriptor_div_non_si_composes_scales() -> None:
+    """Dividing non-SI descriptors composes their scales: inch/s scale = 0.0254."""
+    us = UnitSystem.si()
+    result = us.inch / us.second
+    assert isinstance(result, UnitDescriptor)
+    assert str(result) == "inch / second"
+    assert float(result) == pytest.approx(0.0254, rel=1e-6)
+
+
+def test_unit_descriptor_mul_two_descriptors_returns_descriptor() -> None:
+    """Multiplying two UnitDescriptors produces a compound UnitDescriptor."""
+    us = UnitSystem.si()
+    result = us.kg * us.m
+    assert isinstance(result, UnitDescriptor)
+    assert str(result) == "kg * m"
+    assert float(result) == pytest.approx(1.0)
+
+
+def test_unit_descriptor_pow_returns_descriptor() -> None:
+    """Raising a UnitDescriptor to a power produces a compound UnitDescriptor."""
+    us = UnitSystem.si()
+    area = us.m**2
+    assert isinstance(area, UnitDescriptor)
+    assert str(area) == "m ** 2"
+    assert float(area) == pytest.approx(1.0)
+
+
+def test_unit_descriptor_pow_wraps_compound_name_in_parens() -> None:
+    """Compound names get parenthesized before the exponent to avoid ambiguity."""
+    us = UnitSystem.si()
+    vel_sq = (us.m / us.s) ** 2
+    assert str(vel_sq) == "(m / s) ** 2"
+    assert float(vel_sq) == pytest.approx(1.0)
+
+
+def test_unit_descriptor_acceleration_arithmetic() -> None:
+    """us.m / us.s ** 2 is equivalent to us.meter_per_second_squared."""
+    us = UnitSystem.si()
+    accel_arith = us.m / us.s**2
+    accel_pint = us.meter_per_second_squared
+    assert str(accel_arith) == "m / s ** 2"
+    assert float(accel_arith) == pytest.approx(float(accel_pint), rel=1e-9)
+
+
+def test_unit_descriptor_none_scale_propagates_in_compound() -> None:
+    """A descriptor with scale=None produces a compound with scale=None."""
+    a = UnitDescriptor(name="inch")  # no scale
+    b = UnitDescriptor(name="second", scale=1.0)
+    compound = a / b
+    assert compound.scale is None
+
+
+def test_unit_system_getitem_simple_unit() -> None:
+    """us['m'] resolves the same as us.m."""
+    us = UnitSystem.si()
+    assert float(us["m"]) == pytest.approx(float(us.m))
+    assert str(us["m"]) == "m"
+
+
+def test_unit_system_getitem_compound_expression() -> None:
+    """us['m/s'] resolves correctly via Pint expression parsing."""
+    us = UnitSystem.si()
+    vel = us["m/s"]
+    assert isinstance(vel, UnitDescriptor)
+    assert str(vel) == "m/s"
+    assert float(vel) == pytest.approx(1.0)
+
+
+def test_unit_system_getitem_inch_per_second() -> None:
+    """us['inch/second'] handles a non-SI compound unit Pint can parse but __getattr__ cannot."""
+    us = UnitSystem.si()
+    result = us["inch/second"]
+    assert float(result) == pytest.approx(0.0254, rel=1e-6)
+
+
+def test_unit_system_getitem_unknown_raises_key_error() -> None:
+    """us['not_a_unit'] raises KeyError."""
+    us = UnitSystem.si()
+    with pytest.raises(KeyError):
+        _ = us["not_a_unit"]
+
+
+def test_unit_system_fff_base_units() -> None:
+    """fff() uses furlong, firkin of butter (56 lb), and fortnight as base units."""
+    us = UnitSystem.fff()
+    assert us.length == "furlong"
+    assert us.mass == "firkin"
+    assert us.time == "fortnight"
+    assert float(us.furlong) == pytest.approx(1.0)
+    assert float(us.firkin) == pytest.approx(1.0)
+    assert float(us.fortnight) == pytest.approx(1.0)
+
+
+def test_unit_system_fff_si_conversions() -> None:
+    """SI units convert to the expected FFF scales."""
+    us = UnitSystem.fff()
+    assert float(us.meter) == pytest.approx(1 / 201.168, rel=1e-5)  # 1/furlong
+    assert float(us.kilogram) == pytest.approx(
+        1 / (56 * 0.45359237), rel=1e-5
+    )  # 1/firkin
+    assert float(us.second) == pytest.approx(1 / 1_209_600, rel=1e-5)  # 1/fortnight
+
+
+def test_unit_system_base_unit_for_simple_returns_base_name() -> None:
+    """base_unit_for on a simple unit returns the configured base unit name."""
+    us = UnitSystem.si()
+    result = us.base_unit_for("inch")
+    assert result is not None
+    assert str(result) == "m"
+    assert float(result) == pytest.approx(1.0)
+
+
+def test_unit_system_base_unit_for_compound_velocity() -> None:
+    """base_unit_for on a velocity unit returns a compound base descriptor."""
+    us = UnitSystem.si()
+    result = us.base_unit_for("inch / second")
+    assert result is not None
+    assert str(result) == "m / s"
+    assert float(result) == pytest.approx(1.0)
+
+
+def test_unit_system_base_unit_for_dimensionless_returns_none() -> None:
+    """base_unit_for on a dimensionless unit returns None."""
+    us = UnitSystem.si()
+    assert us.base_unit_for("radian") is None
+
+
+def test_unit_system_base_unit_for_acceleration() -> None:
+    """base_unit_for on an acceleration unit returns the compound m / s ** 2 descriptor."""
+    us = UnitSystem.si()
+    result = us.base_unit_for("inch / second ** 2")
+    assert result is not None
+    assert str(result) == "m / s ** 2"
+
+
+def test_unit_descriptor_pow_offset_unit_raises() -> None:
+    """Raising an offset unit (degF) to a power other than 0 or 1 raises ValueError."""
+    us = UnitSystem.si()
+    degF = us.degF
+    with pytest.raises(ValueError, match="offset"):
+        _ = degF**2
+    with pytest.raises(ValueError, match="offset"):
+        _ = degF**-1
+    with pytest.raises(ValueError, match="offset"):
+        _ = degF**0.5
+
+
+def test_unit_descriptor_pow_offset_unit_exp_one_is_allowed() -> None:
+    """Raising an offset unit to power 1 is a no-op and should not raise."""
+    us = UnitSystem.si()
+    result = us.degF**1
+    assert isinstance(result, UnitDescriptor)
+
+
+def test_unit_descriptor_pow_offset_unit_exp_zero_is_allowed() -> None:
+    """Raising an offset unit to power 0 produces a dimensionless result and should not raise."""
+    us = UnitSystem.si()
+    result = us.degF**0
+    assert isinstance(result, UnitDescriptor)
+    assert float(result) == pytest.approx(1.0)
+
+
+def test_unit_descriptor_mul_two_offset_units_raises() -> None:
+    """Multiplying two offset units (degF * degC) raises ValueError."""
+    us = UnitSystem.si()
+    with pytest.raises(ValueError, match="offset"):
+        _ = us.degF * us.degC
+
+
+def test_unit_descriptor_mul_offset_and_non_offset_is_allowed() -> None:
+    """Multiplying an offset unit by a non-offset unit is allowed (represents a differential rate)."""
+    us = UnitSystem.si()
+    result = us.degF * us.second
+    assert isinstance(result, UnitDescriptor)
+    assert result.offset == 0.0  # offset correctly drops for the compound unit
+    assert float(result) == pytest.approx(5 / 9, rel=1e-6)
+
+
+def test_unit_descriptor_truediv_two_offset_units_raises() -> None:
+    """Dividing two offset units (degF / degC) raises ValueError."""
+    us = UnitSystem.si()
+    with pytest.raises(ValueError, match="offset"):
+        _ = us.degF / us.degC
+
+
+def test_unit_descriptor_truediv_offset_by_non_offset_is_allowed() -> None:
+    """Dividing an offset unit by a non-offset unit is allowed (temperature rate)."""
+    us = UnitSystem.si()
+    result = us.degF / us.second
+    assert isinstance(result, UnitDescriptor)
+    assert result.offset == 0.0
+    assert float(result) == pytest.approx(5 / 9, rel=1e-6)
