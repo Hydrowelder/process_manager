@@ -34,7 +34,7 @@ class UnitDescriptor(BaseModel):
     """
     A named unit with an affine conversion (scale + offset) to the model's base unit for that dimension.
 
-    The full conversion is `base_value = scale * source_value + offset`. For purely multiplicative units (everything except temperature offsets like degF/degC), `offset` is 0 and `float(descriptor)` returns the scale — multiply by it to convert FROM this unit INTO the model's base unit for the same physical dimension. `str(descriptor)` returns the unit name (e.g. `"inch"`, `"meter"`).
+    The full conversion is `base_value = scale * source_value + offset`. For purely multiplicative units (everything except temperature offsets like degF/degC), `offset` is 0 and `float(descriptor)` returns the scale; multiply by it to convert FROM this unit INTO the model's base unit for the same physical dimension. `str(descriptor)` returns the unit name (e.g. `"inch"`, `"meter"`).
 
     The `scale` and `offset` are computed by `UnitSystem.__getattr__` and excluded from serialization. After deserializing a model that contains `UnitDescriptor` fields, call `StochasBase.with_unit_system(us)` to re-populate them before sampling.
 
@@ -163,14 +163,14 @@ class UnitSystem(BaseModel):
     """
     Declares the physical unit system for a MuJoCo model.
 
-    Each field names the base unit for one Pint dimension. Any Pint-recognized unit -- base or compound -- can be accessed as an attribute and returns a `UnitDescriptor` whose `scale` and `offset` describe the affine conversion `base = scale * source + offset` FROM that unit INTO the model's equivalent unit for the same dimensionality. For all non-temperature units `offset` is 0 and `float(descriptor)` returns `scale`. A dimension must be configured for every component that appears in the target unit's dimensionality; otherwise `AttributeError` is raised.
+    Each field names the base unit for one Pint dimension. Any Pint-recognized unit, base or compound, can be accessed as an attribute and returns a `UnitDescriptor` whose `scale` and `offset` describe the affine conversion `base = scale * source + offset` FROM that unit INTO the model's equivalent unit for the same dimensionality. For all non-temperature units `offset` is 0 and `float(descriptor)` returns `scale`. A dimension must be configured for every component that appears in the target unit's dimensionality; otherwise `AttributeError` is raised.
 
-    Built-in coherent factory methods -- in each, the natural force unit is the product of the mass and length base units divided by time squared:
+    Built-in coherent factory methods (in each, the natural force unit is the product of the mass and length base units divided by time squared):
 
-    - `UnitSystem.si()`: meter / kilogram / second -- force = newton
-    - `UnitSystem.cgs()`: centimeter / gram / second -- force = dyne
-    - `UnitSystem.fps()`: foot / slug / second -- force = lbf
-    - `UnitSystem.ips()`: inch / slinch / second -- force = lbf  (slinch = 12 slugs = lbf*s^2/in)
+    - `UnitSystem.si()`: meter / kilogram / second, force = newton
+    - `UnitSystem.cgs()`: centimeter / gram / second, force = dyne
+    - `UnitSystem.fps()`: foot / slug / second, force = lbf
+    - `UnitSystem.ips()`: inch / slinch / second, force = lbf  (slinch = 12 slugs = lbf*s^2/in)
 
     Example::
 
@@ -191,9 +191,9 @@ class UnitSystem(BaseModel):
     length: str
     """Base length unit (e.g. `"meter"`, `"inch"`, `"foot"`)."""
     mass: str
-    """Base mass unit (e.g. `"kilogram"`, `"slug"`, `"slinch"`, `"gram"`). Use a coherent mass unit for the chosen length scale so that derived force units come out naturally -- see the factory methods for the standard combinations."""
+    """Base mass unit (e.g. `"kilogram"`, `"slug"`, `"slinch"`, `"gram"`). Use a coherent mass unit for the chosen length scale so that derived force units come out naturally; see the factory methods for the standard combinations."""
     time: str = "s"
-    """Base time unit. Defaults to `"second"`, which is the conventional choice, but MuJoCo has no intrinsic time scale -- it treats time as whatever unit the user treats it as."""
+    """Base time unit. Defaults to `"second"`, which is the conventional choice, but MuJoCo has no intrinsic time scale: it treats time as whatever unit the user treats it as."""
 
     # --- other SI base dimensions (all optional; only needed when resolving units in those dimensions) ---
     temperature: str | None = None

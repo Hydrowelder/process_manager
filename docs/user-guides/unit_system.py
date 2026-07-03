@@ -40,16 +40,16 @@ print(f"pos: {pos_m} m")  # [0.0254, 0.0508, 0.0762]
 # ---8<--- [start: construct]
 us = UnitSystem.si()
 
-# way 1 -- attribute access: any Pint-recognized unit name
+# attribute access: any Pint-recognized unit name
 assert float(us.meter) == 1.0
 assert float(us.inch) == 0.0254
 assert abs(float(us.pound) - 0.45359237) < 1e-9  # kg per pound
 
-# way 2 -- Pint underscore names for compound units Pint already knows
+# Pint underscore names for compound units Pint already knows
 assert float(us.meter_per_second) == 1.0
 assert float(us.kilometer_per_hour) == 1 / 3.6  # km/h -> m/s
 
-# way 3 -- descriptor arithmetic: *, /, ** compose name and scale
+# descriptor arithmetic: *, /, ** compose name and scale
 velocity = us.m / us.s  # UnitDescriptor("m / s",      scale=1.0)
 accel = us.m / us.s**2  # UnitDescriptor("m / s ** 2", scale=1.0)
 area = us.m**2  # UnitDescriptor("m ** 2",     scale=1.0)
@@ -58,7 +58,7 @@ area = us.m**2  # UnitDescriptor("m ** 2",     scale=1.0)
 inch_per_sec = us.inch / us.second  # scale = 0.0254 / 1.0 = 0.0254
 assert abs(float(inch_per_sec) - 0.0254) < 1e-12
 
-# way 4 -- string subscript: any Pint expression (slashes, **, spaces all OK)
+# string subscript: any Pint expression (slashes, **, spaces all OK)
 assert float(us["m/s"]) == 1.0
 assert float(us["inch/second"]) == 0.0254  # us.inch_per_second raises AttributeError
 assert float(us["m/s**2"]) == 1.0
