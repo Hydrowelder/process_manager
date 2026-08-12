@@ -1,3 +1,5 @@
+"""Example: defining and optimizing design variables with Optuna."""
+
 import logging
 
 import numpy as np
@@ -63,9 +65,10 @@ study = optuna.create_study(direction="minimize")
 
 def objective(trial):
     # Ask variables to suggest values to Optuna
-    suggestions = {name: dv.to_optuna(trial) for name, dv in design_space.items()}
+    for dv in design_space.values():
+        dv.to_optuna(trial)
 
-    # In a real run, you'd apply these 'suggestions' to the model.named registry
+    # In a real run, you'd apply these suggestions to the model.named registry
     # and execute your physics/cost simulation here.
     score = np.random.random()  # Placeholder for simulation result
     return score

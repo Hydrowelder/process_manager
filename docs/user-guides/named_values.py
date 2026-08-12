@@ -1,3 +1,5 @@
+"""Example: creating and managing NamedValue containers."""
+
 # ---8<--- [start: basics]
 import stochas
 

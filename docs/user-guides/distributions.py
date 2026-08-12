@@ -1,3 +1,5 @@
+"""Example: sampling distributions and registering results as named values."""
+
 # ---8<--- [start: basics]
 from numpydantic import NDArray
 

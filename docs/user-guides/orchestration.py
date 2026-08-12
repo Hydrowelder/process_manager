@@ -1,3 +1,5 @@
+"""Example: orchestrating a model run with seeds, trials, and overrides."""
+
 import numpy as np
 
 import stochas
