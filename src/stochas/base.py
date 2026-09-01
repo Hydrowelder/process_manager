@@ -23,6 +23,7 @@ from stochas.distribution import (
     DistributionDict,
 )
 from stochas.named_value import NamedValue, NamedValueDict
+from stochas.transaction import Transaction
 from stochas.unit_system import UnitDescriptor, UnitSystem
 
 logger = logging.getLogger(__name__)
@@ -244,3 +245,41 @@ class StochasBase(BaseModel):
     @property
     def is_nominal(self) -> bool:
         return self.trial_num == NOMINAL_TRIAL_NUM
+
+    @overload
+    def transaction(
+        self, retry_on: type[Exception], max_retries: int = 10
+    ) -> Transaction: ...
+    @overload
+    def transaction(
+        self, retry_on: tuple[type[Exception], ...], max_retries: int = 10
+    ) -> Transaction: ...
+    def transaction(
+        self,
+        retry_on: type[Exception] | tuple[type[Exception], ...],
+        max_retries: int = 10,
+    ) -> Transaction:
+        """
+        Retries a block of correlated random draws until it succeeds or max_retries is exhausted.
+
+        Returns an iterable of attempts; wrap your sampling code in `with attempt:`, sample through `attempt.sample_dist(...)` (not `self.sample_dist(...)`, see below), and raise one of `retry_on` to signal an invalid draw. Registrations made in `self.dists`, `self.design`, and `self.named` during a failed attempt are rolled back before the next attempt (or before the exception propagates, if it isn't one of `retry_on`).
+
+        `attempt.sample_dist` reseeds a distribution only the first time it's sampled within the transaction; later attempts keep drawing from that distribution's RNG stream instead of resetting it, so retries actually see new values instead of repeating the same rejected draw. `attempt.sample_design` is also transaction-aware (it rolls back with everything else on a rejected attempt), though it needs no reseeding of its own since an optimizer, not stochas, picks a design variable's value. Anything else not wrapped on `attempt` is reachable via `attempt.base`.
+
+        Args:
+            retry_on (type[Exception] | tuple[type[Exception], ...]): Exception type(s) that mean "bad draw, retry" rather than a real error.
+            max_retries (int, optional): Maximum number of attempts before raising RuntimeError. Defaults to 10.
+
+        Raises:
+            RuntimeError: If no attempt succeeds within max_retries.
+
+        Example:
+            >>> for attempt in model.transaction(retry_on=(ValueError,), max_retries=10):
+            >>>     with attempt:
+            >>>         x = attempt.sample_dist(x_dist)
+            >>>         y = attempt.sample_dist(y_dist)
+            >>>         if x.value + y.value > limit:
+            >>>             raise ValueError("x + y exceeds the allowed limit")
+
+        """
+        return Transaction.begin(self, retry_on=retry_on, max_retries=max_retries)

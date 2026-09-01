@@ -57,6 +57,7 @@ from .named_value import (
     Val,
     ValueName,
 )
+from .transaction import Transaction, TransactionAttempt
 from .unit_system import UnitDescriptor, UnitSystem, ureg
 
 __all__ = [
@@ -109,6 +110,8 @@ __all__ = [
     "RayleighDistribution",
     "StochasBase",
     "StudentTDistribution",
+    "Transaction",
+    "TransactionAttempt",
     "TriangularDistribution",
     "TruncatedNormalDistribution",
     "UniformDistribution",
