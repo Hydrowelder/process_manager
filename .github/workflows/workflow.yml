@@ -21,6 +21,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Only the coverage-badge commit below (3.13, push to main) needs
+          # this; empty everywhere else so the deploy key is never loaded on
+          # runs that don't push. It bypasses "PR required" and "signed
+          # commits" on main by itself, instead of exempting a permission
+          # tier like Write that every contributor would also get.
+          ssh-key: ${{ (matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main') && secrets.COVERAGE_BADGE_DEPLOY_KEY || '' }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -31,11 +38,8 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Run unit tests
-        # Explicitly tells uv which python version to use for the test environment
-        run: uv run --python ${{ matrix.python-version }} --group dev pytest
-
-      - name: Generate coverage report
-        if: matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Always collects coverage (cheap on a test suite this size) so the
+        # 3.13/push-to-main path below doesn't need a second, redundant run.
         run: uv run --python ${{ matrix.python-version }} --group dev pytest --cov=stochas --cov-report=xml
 
       - name: Generate coverage badge
