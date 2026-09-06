@@ -6,9 +6,8 @@ import math
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 import numpy as np
-import scipy.stats as stats
 from numpydantic import NDArray
-from pydantic import Field, PrivateAttr, model_validator
+from pydantic import Field, model_validator
 
 from stochas.distribution._base import (
     UNDEFINED,
@@ -19,8 +18,12 @@ from stochas.distribution._base import (
 )
 
 if TYPE_CHECKING:
+    from scipy.stats._distn_infrastructure import (  # pyright: ignore[reportMissingModuleSource]
+        rv_discrete_frozen,
+    )
     from scipy.stats.distributions import rv_discrete
 else:
+    rv_discrete_frozen = Any
     rv_discrete = Any
 
 
@@ -48,8 +51,6 @@ class DiscreteUniformDistribution(DiscreteDistribution[int]):
     low: int
     high: int
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.DISCRETE_UNIFORM] = DistType.DISCRETE_UNIFORM
 
     @model_validator(mode="after")
@@ -60,10 +61,10 @@ class DiscreteUniformDistribution(DiscreteDistribution[int]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.randint(low=self.low, high=self.high + 1)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_discrete_frozen:
+        import scipy.stats as stats
+
+        return stats.randint(low=self.low, high=self.high + 1)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.integers(low=self.low, high=self.high, size=size, endpoint=True)
@@ -114,8 +115,6 @@ class CategoricalDistribution[T](DiscreteDistribution[T]):
     choices: dict[T, float]
     """Choices for the categorical distribution. Tuples have the format (category, probability). This guarantees each category has an associated probability."""
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.CATEGORICAL] = DistType.CATEGORICAL
 
     @property
@@ -135,13 +134,13 @@ class CategoricalDistribution[T](DiscreteDistribution[T]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
+    def _build_scipy(self) -> rv_discrete_frozen | rv_discrete:
+        import scipy.stats as stats
+
         indices = np.arange(len(self.choices))
-        self._scipy = stats.rv_discrete(
+        return stats.rv_discrete(
             name=self.name, values=(indices, self.probabilities), seed=self.rng
         )
-        return self
 
     def draw(self, size: int = 1) -> NDArray[Any, T]:
         return self.rng.choice(a=self.categories, size=size, p=self.probabilities)  # type: ignore
@@ -163,7 +162,7 @@ class CategoricalDistribution[T](DiscreteDistribution[T]):
         """
         try:
             idx = self.categories.index(x)
-            return self._scipy.cdf(idx)
+            return float(self._scipy.cdf(idx))
         except ValueError:
             return 0.0
 
@@ -244,14 +243,12 @@ class PoissonDistribution(DiscreteDistribution[int]):
     lam: float
     """Lambda: Average rate of occurrences"""
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.POISSON] = DistType.POISSON
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.poisson(mu=self.lam)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_discrete_frozen:
+        import scipy.stats as stats
+
+        return stats.poisson(mu=self.lam)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.poisson(lam=self.lam, size=size)
@@ -295,8 +292,6 @@ class BernoulliDistribution(DiscreteDistribution[bool]):
     p: float
     """Probability of success (0.0 to 1.0)."""
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.BERNOULLI] = DistType.BERNOULLI
 
     @model_validator(mode="after")
@@ -307,10 +302,10 @@ class BernoulliDistribution(DiscreteDistribution[bool]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.bernoulli(self.p)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_discrete_frozen:
+        import scipy.stats as stats
+
+        return stats.bernoulli(self.p)
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy doesn't have a 'bernoulli', so we use binomial with n=1
@@ -358,8 +353,6 @@ class BinomialDistribution(DiscreteDistribution[int]):
     p: float
     """Probability of success on each trial (0.0 to 1.0)."""
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.BINOMIAL] = DistType.BINOMIAL
 
     @model_validator(mode="after")
@@ -374,10 +367,10 @@ class BinomialDistribution(DiscreteDistribution[int]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.binom(n=self.n, p=self.p)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_discrete_frozen:
+        import scipy.stats as stats
+
+        return stats.binom(n=self.n, p=self.p)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.binomial(n=self.n, p=self.p, size=size)
@@ -425,8 +418,6 @@ class NegativeBinomialDistribution(DiscreteDistribution[int]):
     p: float
     """Probability of success on each trial (0 < p <= 1)."""
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.NEGATIVE_BINOMIAL] = DistType.NEGATIVE_BINOMIAL
 
     @model_validator(mode="after")
@@ -441,10 +432,10 @@ class NegativeBinomialDistribution(DiscreteDistribution[int]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.nbinom(n=self.r, p=self.p)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_discrete_frozen:
+        import scipy.stats as stats
+
+        return stats.nbinom(n=self.r, p=self.p)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.negative_binomial(n=self.r, p=self.p, size=size)
@@ -489,8 +480,6 @@ class GeometricDistribution(DiscreteDistribution[int]):
     p: float
     """Probability of success on each trial (0 < p <= 1)."""
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.GEOMETRIC] = DistType.GEOMETRIC
 
     @model_validator(mode="after")
@@ -501,10 +490,10 @@ class GeometricDistribution(DiscreteDistribution[int]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.geom(p=self.p)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_discrete_frozen:
+        import scipy.stats as stats
+
+        return stats.geom(p=self.p)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.geometric(p=self.p, size=size)
@@ -555,8 +544,6 @@ class HypergeometricDistribution(DiscreteDistribution[int]):
     K: int
     """Number of success states in the population. Must satisfy 0 <= K <= N."""
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.HYPERGEOMETRIC] = DistType.HYPERGEOMETRIC
 
     @model_validator(mode="after")
@@ -575,11 +562,11 @@ class HypergeometricDistribution(DiscreteDistribution[int]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
+    def _build_scipy(self) -> rv_discrete_frozen:
+        import scipy.stats as stats
+
         # scipy hypergeom: M=population, n=successes in pop, N=draws
-        self._scipy = stats.hypergeom(M=self.N, n=self.K, N=self.M)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+        return stats.hypergeom(M=self.N, n=self.K, N=self.M)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.hypergeometric(
@@ -631,8 +618,6 @@ class BetaBinomialDistribution(DiscreteDistribution[int]):
     beta: float
     """Second shape parameter of the Beta prior. Must be positive."""
 
-    _scipy: rv_discrete = PrivateAttr()
-
     dist_type: Literal[DistType.BETA_BINOMIAL] = DistType.BETA_BINOMIAL
 
     @model_validator(mode="after")
@@ -651,10 +636,10 @@ class BetaBinomialDistribution(DiscreteDistribution[int]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.betabinom(n=self.n, a=self.alpha, b=self.beta)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_discrete_frozen:
+        import scipy.stats as stats
+
+        return stats.betabinom(n=self.n, a=self.alpha, b=self.beta)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return np.asarray(self._scipy.rvs(size=size, random_state=self.rng))

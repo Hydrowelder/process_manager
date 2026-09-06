@@ -5,16 +5,18 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Annotated, Any, Literal, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Self, cast
 
 import numpy as np
-import optuna
 from pydantic import Field, model_validator
 from pymoo.core.variable import Binary, Choice, Integer, Real
 
 from stochas.base_collections import BaseDict, BaseList, HasUnitsCollection
 from stochas.mixins import MetadataMixin
 from stochas.named_value import NamedValue, ValueName
+
+if TYPE_CHECKING:
+    import optuna
 
 __all__ = [
     "DesignBool",
