@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, Self, cast
 
 import numpy as np
-from numpydantic import NDArray
 from pydantic import Field, model_validator
 
 from stochas.distribution._base import (
     UNDEFINED,
     DiscreteDistribution,
     DistType,
+    NDArray,
     SerializableUndefined,
     logger,
 )
@@ -64,7 +64,7 @@ class DiscreteUniformDistribution(DiscreteDistribution[int]):
     def _build_scipy(self) -> rv_discrete_frozen:
         import scipy.stats as stats
 
-        return stats.randint(low=self.low, high=self.high + 1)
+        return cast(rv_discrete_frozen, stats.randint(low=self.low, high=self.high + 1))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.integers(low=self.low, high=self.high, size=size, endpoint=True)
@@ -248,7 +248,7 @@ class PoissonDistribution(DiscreteDistribution[int]):
     def _build_scipy(self) -> rv_discrete_frozen:
         import scipy.stats as stats
 
-        return stats.poisson(mu=self.lam)
+        return cast(rv_discrete_frozen, stats.poisson(mu=self.lam))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.poisson(lam=self.lam, size=size)
@@ -305,7 +305,7 @@ class BernoulliDistribution(DiscreteDistribution[bool]):
     def _build_scipy(self) -> rv_discrete_frozen:
         import scipy.stats as stats
 
-        return stats.bernoulli(self.p)
+        return cast(rv_discrete_frozen, stats.bernoulli(self.p))
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy doesn't have a 'bernoulli', so we use binomial with n=1
@@ -370,7 +370,7 @@ class BinomialDistribution(DiscreteDistribution[int]):
     def _build_scipy(self) -> rv_discrete_frozen:
         import scipy.stats as stats
 
-        return stats.binom(n=self.n, p=self.p)
+        return cast(rv_discrete_frozen, stats.binom(n=self.n, p=self.p))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.binomial(n=self.n, p=self.p, size=size)
@@ -435,7 +435,7 @@ class NegativeBinomialDistribution(DiscreteDistribution[int]):
     def _build_scipy(self) -> rv_discrete_frozen:
         import scipy.stats as stats
 
-        return stats.nbinom(n=self.r, p=self.p)
+        return cast(rv_discrete_frozen, stats.nbinom(n=self.r, p=self.p))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.negative_binomial(n=self.r, p=self.p, size=size)
@@ -493,7 +493,7 @@ class GeometricDistribution(DiscreteDistribution[int]):
     def _build_scipy(self) -> rv_discrete_frozen:
         import scipy.stats as stats
 
-        return stats.geom(p=self.p)
+        return cast(rv_discrete_frozen, stats.geom(p=self.p))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.geometric(p=self.p, size=size)
@@ -566,7 +566,7 @@ class HypergeometricDistribution(DiscreteDistribution[int]):
         import scipy.stats as stats
 
         # scipy hypergeom: M=population, n=successes in pop, N=draws
-        return stats.hypergeom(M=self.N, n=self.K, N=self.M)
+        return cast(rv_discrete_frozen, stats.hypergeom(M=self.N, n=self.K, N=self.M))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.hypergeometric(
@@ -639,7 +639,9 @@ class BetaBinomialDistribution(DiscreteDistribution[int]):
     def _build_scipy(self) -> rv_discrete_frozen:
         import scipy.stats as stats
 
-        return stats.betabinom(n=self.n, a=self.alpha, b=self.beta)
+        return cast(
+            rv_discrete_frozen, stats.betabinom(n=self.n, a=self.alpha, b=self.beta)
+        )
 
     def draw(self, size: int = 1) -> np.ndarray:
         return np.asarray(self._scipy.rvs(size=size, random_state=self.rng))

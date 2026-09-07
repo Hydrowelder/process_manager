@@ -6,8 +6,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
 
-from numpydantic import NDArray
-
 from stochas.design_variable import (
     AnyDesignValue,
     DesignBool,
@@ -16,6 +14,7 @@ from stochas.design_variable import (
     DesignInt,
 )
 from stochas.distribution import Distribution
+from stochas.distribution._base import NDArray
 from stochas.named_value import NamedValue
 
 if TYPE_CHECKING:

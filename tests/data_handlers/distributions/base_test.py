@@ -58,6 +58,8 @@ def test_sample_to_named_value_inherits_metadata():
         source="datasheet",
         display_name="X Position",
         comment="note",
+        seed=42,
+        trial_num=1,
     )
 
     nv = dist.sample_to_named_value()
@@ -112,7 +114,7 @@ def test_serialization_roundtrip_dict():
 
 def test_sample_and_update_dicts_returns_existing_without_force():
     """Ensure a second call without force returns the already-registered NamedValue."""
-    dist = NormalDistribution(name=DistName("x"), mu=0, sigma=1)
+    dist = NormalDistribution(name=DistName("x"), mu=0, sigma=1, seed=42, trial_num=1)
     dist_dict = DistributionDict()
     named_dict = NamedValueDict()
 
@@ -124,7 +126,7 @@ def test_sample_and_update_dicts_returns_existing_without_force():
 
 def test_sample_and_update_dicts_force_overwrites_and_warns(caplog):
     """Ensure force=True overwrites the existing NamedValue and logs a warning."""
-    dist = NormalDistribution(name=DistName("x"), mu=0, sigma=1)
+    dist = NormalDistribution(name=DistName("x"), mu=0, sigma=1, seed=42, trial_num=1)
     dist_dict = DistributionDict()
     named_dict = NamedValueDict()
 

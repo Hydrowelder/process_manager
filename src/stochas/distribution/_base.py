@@ -16,7 +16,6 @@ from typing import (
 )
 
 import numpy as np
-from numpydantic import NDArray
 from pydantic import (
     BeforeValidator,
     ConfigDict,
@@ -32,6 +31,13 @@ from stochas.named_value import NamedValue, ValueName
 from stochas.unit_system import UnitDescriptor, UnitSystem
 
 if TYPE_CHECKING:
+    # numpydantic's own NDArray only type-checks when the dtype parameter is a numpy
+    # scalar type (e.g. np.float64), not a plain Python type like the `float`/`int`
+    # this module actually parameterizes distributions with, so pyright sees a bare
+    # `np.ndarray` here instead; numpydantic's real NDArray still runs at runtime
+    # below, so pydantic validation/serialization is unaffected.
+    type NDArray[TShape, TDType] = np.ndarray
+
     from scipy.stats._distn_infrastructure import (  # pyright: ignore[reportMissingModuleSource]
         rv_continuous_frozen,
         rv_discrete_frozen,
@@ -44,6 +50,9 @@ else:
     rv_continuous_frozen = Any
     rv_discrete_frozen = Any
     rv_discrete = Any
+
+    from numpydantic import NDArray
+
 
 logger = logging.getLogger(__name__)
 
@@ -300,15 +309,15 @@ class Distribution[T](ABC, MetadataMixin):
         if (
             convert_units
             and isinstance(self.unit, UnitDescriptor)
-            and np.issubdtype(samples.dtype, np.number)  # pyright: ignore[reportAttributeAccessIssue]
+            and np.issubdtype(samples.dtype, np.number)
         ):
-            samples = samples * self.unit.scale + self.unit.offset  # pyright: ignore[reportOperatorIssue]
+            samples = samples * self.unit.scale + self.unit.offset
             metadata["unit"] = (
                 unit_system.base_unit_for(self.unit.name)
                 if unit_system is not None
                 else None
             )
-        concrete_type = samples.dtype.type().item().__class__  # pyright: ignore[reportAttributeAccessIssue]
+        concrete_type = samples.dtype.type().item().__class__
         return NamedValue[NDArray[Any, concrete_type]](
             name=ValueName(self.name),
             stored_value=samples,

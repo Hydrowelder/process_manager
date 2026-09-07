@@ -29,7 +29,9 @@ from stochas import (
 
 def test_normal_distribution_properties():
     mu, sigma = 100, 15
-    dist = NormalDistribution(name=DistName("iq"), mu=mu, sigma=sigma)
+    dist = NormalDistribution(
+        name=DistName("iq"), mu=mu, sigma=sigma, seed=42, trial_num=1
+    )
 
     # Statistical properties
     assert dist.pdf(mu) > 0
@@ -59,7 +61,9 @@ def test_normal_distribution_nominal_sample():
 
 
 def test_uniform_distribution_bounds():
-    dist = UniformDistribution(name=DistName("u"), low=10, high=20)
+    dist = UniformDistribution(
+        name=DistName("u"), low=10, high=20, seed=42, trial_num=1
+    )
     samples = dist.sample(100)
 
     assert np.all(samples >= 10)
@@ -83,7 +87,9 @@ def test_triangular_validation():
 
 def test_triangular_properties():
     """Verify Triangular sampling, PDF, CDF, PPF, and is_continuous."""
-    dist = TriangularDistribution(name=DistName("tri"), low=0, mode=5, high=10)
+    dist = TriangularDistribution(
+        name=DistName("tri"), low=0, mode=5, high=10, seed=42, trial_num=1
+    )
 
     samples = dist.sample(100)
     assert np.all(samples >= 0)
@@ -101,7 +107,13 @@ def test_truncated_normal_bounds():
     mu, sigma = 100, 10
     lower, upper = 95, 105
     dist = TruncatedNormalDistribution(
-        name=DistName("clamped"), mu=mu, sigma=sigma, low=lower, high=upper
+        name=DistName("clamped"),
+        mu=mu,
+        sigma=sigma,
+        low=lower,
+        high=upper,
+        seed=42,
+        trial_num=1,
     )
 
     samples = dist.sample(1000)
@@ -120,7 +132,7 @@ def test_truncated_normal_extreme_bounds():
     """Verify it handles a mean that is outside the bounds."""
     # Mean is 0, but we only allow samples between 10 and 20
     dist = TruncatedNormalDistribution(
-        name=DistName("offset"), mu=0, sigma=1, low=10, high=20
+        name=DistName("offset"), mu=0, sigma=1, low=10, high=20, seed=42, trial_num=1
     )
     samples = dist.sample(100)
     assert np.all(samples >= 10)
@@ -145,7 +157,9 @@ def test_log_normal_properties():
     """Verify LogNormal is positive and respects the shape parameter."""
     s = 0.5  # sigma of the log
     scale = np.exp(2)  # mu of the log is 2
-    dist = LogNormalDistribution(name=DistName("skewed"), s=s, scale=scale)
+    dist = LogNormalDistribution(
+        name=DistName("skewed"), s=s, scale=scale, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples > 0)
@@ -162,7 +176,9 @@ def test_log_normal_properties():
 def test_exponential_properties():
     """Verify Exponential distribution follows the rate lambda."""
     lam = 0.5
-    dist = ExponentialDistribution(name=DistName("decay"), lam=lam)
+    dist = ExponentialDistribution(
+        name=DistName("decay"), lam=lam, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples >= 0)
@@ -182,7 +198,9 @@ def test_exponential_properties():
 def test_rayleigh_properties():
     """Verify Rayleigh distribution follows the scale (sigma) parameter."""
     scale = 2.0
-    dist = RayleighDistribution(name=DistName("error"), scale=scale)
+    dist = RayleighDistribution(
+        name=DistName("error"), scale=scale, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples >= 0)
@@ -234,7 +252,9 @@ def test_continuous_ppf_consistency(dist_instance):
 def test_gamma_properties():
     """Verify Gamma sampling is positive and mean tracks alpha*beta."""
     alpha, beta = 3.0, 2.0
-    dist = GammaDistribution(name=DistName("g"), alpha=alpha, beta=beta)
+    dist = GammaDistribution(
+        name=DistName("g"), alpha=alpha, beta=beta, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples > 0)
@@ -256,7 +276,9 @@ def test_gamma_validation():
 def test_beta_properties():
     """Verify Beta samples are in (0,1) and CDF at mode is consistent."""
     alpha, beta = 2.0, 5.0
-    dist = BetaDistribution(name=DistName("b"), alpha=alpha, beta=beta)
+    dist = BetaDistribution(
+        name=DistName("b"), alpha=alpha, beta=beta, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples > 0)
@@ -283,7 +305,9 @@ def test_beta_validation():
 def test_weibull_properties():
     """Verify Weibull samples are positive and PPF/CDF are consistent."""
     shape, scale = 2.0, 100.0
-    dist = WeibullDistribution(name=DistName("w"), shape=shape, scale=scale)
+    dist = WeibullDistribution(
+        name=DistName("w"), shape=shape, scale=scale, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples > 0)
@@ -307,7 +331,9 @@ def test_weibull_validation():
 def test_logistic_properties():
     """Verify Logistic is symmetric about mu with CDF of 0.5 at the mean."""
     mu, beta = 5.0, 2.0
-    dist = LogisticDistribution(name=DistName("lo"), mu=mu, beta=beta)
+    dist = LogisticDistribution(
+        name=DistName("lo"), mu=mu, beta=beta, seed=42, trial_num=1
+    )
 
     samples = dist.sample(10000)
     assert np.isclose(np.mean(samples), mu, atol=0.3)
@@ -326,7 +352,9 @@ def test_logistic_validation():
 def test_pareto_properties():
     """Verify Pareto samples are >= beta and CDF/PPF are consistent."""
     alpha, beta = 3.0, 1.0
-    dist = ParetoDistribution(name=DistName("pa"), alpha=alpha, beta=beta)
+    dist = ParetoDistribution(
+        name=DistName("pa"), alpha=alpha, beta=beta, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples >= beta)
@@ -349,7 +377,7 @@ def test_pareto_validation():
 def test_student_t_properties():
     """Verify Student-T is symmetric about zero with CDF of 0.5 at zero."""
     nu = 5.0
-    dist = StudentTDistribution(name=DistName("st"), nu=nu)
+    dist = StudentTDistribution(name=DistName("st"), nu=nu, seed=42, trial_num=1)
 
     samples = dist.sample(1000)
     assert np.isclose(np.mean(samples), 0.0, atol=0.2)
@@ -368,7 +396,9 @@ def test_student_t_validation():
 def test_cauchy_properties():
     """Verify Cauchy CDF is 0.5 at theta and PPF/CDF are consistent."""
     theta, sigma = 2.0, 1.0
-    dist = CauchyDistribution(name=DistName("ca"), theta=theta, sigma=sigma)
+    dist = CauchyDistribution(
+        name=DistName("ca"), theta=theta, sigma=sigma, seed=42, trial_num=1
+    )
 
     assert np.isclose(dist.cdf(theta), 0.5)
     assert np.isclose(dist.ppf(0.5), theta)
@@ -387,7 +417,7 @@ def test_cauchy_validation():
 def test_chi_squared_properties():
     """Verify ChiSquared samples are positive and mean tracks p."""
     p = 4
-    dist = ChiSquaredDistribution(name=DistName("cs"), p=p)
+    dist = ChiSquaredDistribution(name=DistName("cs"), p=p, seed=42, trial_num=1)
 
     samples = dist.sample(1000)
     assert np.all(samples > 0)
@@ -407,7 +437,9 @@ def test_chi_squared_validation():
 def test_laplace_properties():
     """Verify Laplace is symmetric about mu with CDF of 0.5 at the mean."""
     mu, sigma = 3.0, 1.5
-    dist = LaplaceDistribution(name=DistName("la"), mu=mu, sigma=sigma)
+    dist = LaplaceDistribution(
+        name=DistName("la"), mu=mu, sigma=sigma, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.isclose(np.mean(samples), mu, atol=0.2)
@@ -426,7 +458,7 @@ def test_laplace_validation():
 def test_f_distribution_properties():
     """Verify F samples are positive and mean tracks nu2 / (nu2 - 2) for nu2 > 2."""
     nu1, nu2 = 5.0, 10.0
-    dist = FDistribution(name=DistName("fd"), nu1=nu1, nu2=nu2)
+    dist = FDistribution(name=DistName("fd"), nu1=nu1, nu2=nu2, seed=42, trial_num=1)
 
     samples = dist.sample(1000)
     assert np.all(samples > 0)

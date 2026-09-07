@@ -148,7 +148,9 @@ def test_discrete_seeding_consistency():
 def test_permutation_integrity():
     """Verify a single draw contains all original items exactly once and is squeezable."""
     items = ["Alpha", "Beta", "Gamma"]
-    dist = PermutationDistribution[str](name=DistName("task_order"), items=items)
+    dist = PermutationDistribution[str](
+        name=DistName("task_order"), items=items, seed=42, trial_num=1
+    )
 
     # Draw size=1
     sample = dist.sample(size=1)
@@ -165,7 +167,9 @@ def test_permutation_integrity():
 def test_permutation_multiple_size():
     """Verify drawing multiple permutations returns a (size, N) array."""
     items = [1, 2, 3, 4]
-    dist = PermutationDistribution[int](name=DistName("multi_test"), items=items)
+    dist = PermutationDistribution[int](
+        name=DistName("multi_test"), items=items, seed=42
+    )
 
     size = 5
     # Move past nominal trial to use draw()
@@ -201,7 +205,9 @@ def test_permutation_serialization_and_typing():
     even with the nested array structure.
     """
     items = [1.1, 2.2, 3.3]  # Float items
-    dist = PermutationDistribution[float](name=DistName("ser_test"), items=items)
+    dist = PermutationDistribution[float](
+        name=DistName("ser_test"), items=items, seed=42, trial_num=1
+    )
 
     dist_dict = DistributionDict()
     named_dict = NamedValueDict()
@@ -366,7 +372,9 @@ def test_geometric_validation():
 def test_hypergeometric_properties():
     """Verify Hypergeometric samples are in [0, min(M, K)] and mean tracks M*K/N."""
     N, M, K = 50, 10, 8
-    dist = HypergeometricDistribution(name=DistName("hg"), N=N, M=M, K=K)
+    dist = HypergeometricDistribution(
+        name=DistName("hg"), N=N, M=M, K=K, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples >= 0)
@@ -399,7 +407,9 @@ def test_hypergeometric_validation():
 def test_beta_binomial_properties():
     """Verify BetaBinomial samples are in [0, n] and mean tracks n*alpha/(alpha+beta)."""
     n, alpha, beta = 20, 8.0, 2.0
-    dist = BetaBinomialDistribution(name=DistName("bb"), n=n, alpha=alpha, beta=beta)
+    dist = BetaBinomialDistribution(
+        name=DistName("bb"), n=n, alpha=alpha, beta=beta, seed=42, trial_num=1
+    )
 
     samples = dist.sample(1000)
     assert np.all(samples >= 0)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, Self, cast
 
 import numpy as np
 from pydantic import field_serializer, field_validator, model_validator
@@ -63,7 +63,7 @@ class NormalDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.norm(loc=self.mu, scale=self.sigma)
+        return cast(rv_continuous_frozen, stats.norm(loc=self.mu, scale=self.sigma))
 
     def draw(self, size: int = 1):
         return self.rng.normal(loc=self.mu, scale=self.sigma, size=size)
@@ -123,7 +123,7 @@ class UniformDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.uniform(loc=self.low, scale=self.scale)
+        return cast(rv_continuous_frozen, stats.uniform(loc=self.low, scale=self.scale))
 
     @property
     def scale(self) -> float:
@@ -193,7 +193,9 @@ class TriangularDistribution(ContinuousDistribution[float]):
         # scipy mapping: loc=low, scale=high-low, c=(mode-low)/scale
         rescale = self.high - self.low
         c = (self.mode - self.low) / rescale if rescale != 0 else 0
-        return stats.triang(c=c, loc=self.low, scale=rescale)
+        return cast(
+            rv_continuous_frozen, stats.triang(c=c, loc=self.low, scale=rescale)
+        )
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.triangular(
@@ -281,7 +283,10 @@ class TruncatedNormalDistribution(ContinuousDistribution[float]):
         # a and b are the number of standard deviations away from the mean
         a = (self.low - self.mu) / self.sigma
         b = (self.high - self.mu) / self.sigma
-        return stats.truncnorm(a=a, b=b, loc=self.mu, scale=self.sigma)
+        return cast(
+            rv_continuous_frozen,
+            stats.truncnorm(a=a, b=b, loc=self.mu, scale=self.sigma),
+        )
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy doesn't have a truncnorm generator
@@ -334,7 +339,7 @@ class LogNormalDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.lognorm(s=self.s, scale=self.scale)
+        return cast(rv_continuous_frozen, stats.lognorm(s=self.s, scale=self.scale))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.lognormal(mean=np.log(self.scale), sigma=self.s, size=size)
@@ -383,7 +388,7 @@ class ExponentialDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.expon(scale=1 / self.lam)
+        return cast(rv_continuous_frozen, stats.expon(scale=1 / self.lam))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.exponential(scale=1 / self.lam, size=size)
@@ -440,7 +445,7 @@ class RayleighDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.rayleigh(scale=self.scale)
+        return cast(rv_continuous_frozen, stats.rayleigh(scale=self.scale))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.rayleigh(scale=self.scale, size=size)
@@ -504,7 +509,7 @@ class GammaDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.gamma(a=self.alpha, scale=self.beta)
+        return cast(rv_continuous_frozen, stats.gamma(a=self.alpha, scale=self.beta))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.gamma(shape=self.alpha, scale=self.beta, size=size)
@@ -568,7 +573,7 @@ class BetaDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.beta(a=self.alpha, b=self.beta)
+        return cast(rv_continuous_frozen, stats.beta(a=self.alpha, b=self.beta))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.beta(a=self.alpha, b=self.beta, size=size)
@@ -632,7 +637,9 @@ class WeibullDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.weibull_min(c=self.shape, scale=self.scale)
+        return cast(
+            rv_continuous_frozen, stats.weibull_min(c=self.shape, scale=self.scale)
+        )
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy.weibull draws from the standard Weibull (scale=1); multiply by scale
@@ -693,7 +700,7 @@ class LogisticDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.logistic(loc=self.mu, scale=self.beta)
+        return cast(rv_continuous_frozen, stats.logistic(loc=self.mu, scale=self.beta))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.logistic(loc=self.mu, scale=self.beta, size=size)
@@ -756,7 +763,7 @@ class ParetoDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.pareto(b=self.alpha, scale=self.beta)
+        return cast(rv_continuous_frozen, stats.pareto(b=self.alpha, scale=self.beta))
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy pareto returns Lomax samples (x >= 0); add 1 and scale to match scipy's Pareto
@@ -814,7 +821,7 @@ class StudentTDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.t(df=self.nu)
+        return cast(rv_continuous_frozen, stats.t(df=self.nu))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.standard_t(df=self.nu, size=size)
@@ -874,7 +881,9 @@ class CauchyDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.cauchy(loc=self.theta, scale=self.sigma)
+        return cast(
+            rv_continuous_frozen, stats.cauchy(loc=self.theta, scale=self.sigma)
+        )
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.standard_cauchy(size=size) * self.sigma + self.theta
@@ -933,7 +942,7 @@ class ChiSquaredDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.chi2(df=self.p)
+        return cast(rv_continuous_frozen, stats.chi2(df=self.p))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.chisquare(df=self.p, size=size)
@@ -993,7 +1002,7 @@ class LaplaceDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.laplace(loc=self.mu, scale=self.sigma)
+        return cast(rv_continuous_frozen, stats.laplace(loc=self.mu, scale=self.sigma))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.laplace(loc=self.mu, scale=self.sigma, size=size)
@@ -1057,7 +1066,7 @@ class FDistribution(ContinuousDistribution[float]):
     def _build_scipy(self) -> rv_continuous_frozen:
         import scipy.stats as stats
 
-        return stats.f(dfn=self.nu1, dfd=self.nu2)
+        return cast(rv_continuous_frozen, stats.f(dfn=self.nu1, dfd=self.nu2))
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.f(dfnum=self.nu1, dfden=self.nu2, size=size)

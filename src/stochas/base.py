@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Self, TypeVar, cast, overload
 
-from numpydantic import NDArray
+import numpy as np
 from pydantic import BaseModel, Field, SerializeAsAny, model_validator
 
 from stochas.design_variable import (
@@ -22,6 +22,7 @@ from stochas.distribution import (
     Distribution,
     DistributionDict,
 )
+from stochas.distribution._base import NDArray
 from stochas.named_value import NamedValue, NamedValueDict
 from stochas.transaction import Transaction
 from stochas.unit_system import UnitDescriptor, UnitSystem
@@ -188,9 +189,15 @@ class StochasBase(BaseModel):
             metadata["unit"] = (
                 self.us.base_unit_for(dv_unit.name) if self.us is not None else None
             )
-            self.named.update(NamedValue(name=dv.name, stored_value=val, **metadata))
+            self.named.update(
+                NamedValue(name=dv.name, stored_value=np.asarray(val), **metadata)
+            )
         else:
-            self.named.update(dv)
+            self.named.update(
+                NamedValue(
+                    name=dv.name, stored_value=np.asarray(val), **dv.metadata_dict()
+                )
+            )
         return val
 
     @model_validator(mode="after")

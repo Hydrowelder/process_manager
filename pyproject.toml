@@ -9,8 +9,8 @@ description = "stochas is a Python framework built to handle the complexity of M
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "numpy>=2.4.2",
-    "numpydantic>=1.7.0",
+    "numpy>=2.5.0",
+    "numpydantic>=1.10.0",
     "optuna>=4.8.0",
     "pint>=0.25.3",
     "pydantic>=2.12.5",
@@ -105,7 +105,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.17",
-    "scipy-stubs>=1.17.0.2",
+    "scipy-stubs[scipy]>=1.17.0.2",
     "tabulate>=0.10.0",
     "zensical>=0.0.59",
 ]

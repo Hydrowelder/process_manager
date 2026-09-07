@@ -1874,6 +1874,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/12/11/263ced30149fbede00614a11f01de792842d3636b5a9e3abfee34e764a0e/scipy_stubs-1.18.1.0-py3-none-any.whl", hash = "sha256:fc1f00da3eb6bf1adf2138774b5e6a91dcf7c77039ff199577dc47929c10793e", size = 653731, upload-time = "2026-08-22T09:22:51.43Z" },
 ]
 
+[package.optional-dependencies]
+scipy = [
+    { name = "scipy" },
+]
+
 [[package]]
 name = "setuptools"
 version = "84.0.0"
@@ -1952,15 +1957,15 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
-    { name = "scipy-stubs" },
+    { name = "scipy-stubs", extra = ["scipy"] },
     { name = "tabulate" },
     { name = "zensical" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "numpy", specifier = ">=2.4.2" },
-    { name = "numpydantic", specifier = ">=1.7.0" },
+    { name = "numpy", specifier = ">=2.5.0" },
+    { name = "numpydantic", specifier = ">=1.10.0" },
     { name = "optuna", specifier = ">=4.8.0" },
     { name = "pint", specifier = ">=0.25.3" },
     { name = "pydantic", specifier = ">=2.12.5" },
@@ -1980,7 +1985,7 @@ dev = [
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "ruff", specifier = ">=0.15.17" },
-    { name = "scipy-stubs", specifier = ">=1.17.0.2" },
+    { name = "scipy-stubs", extras = ["scipy"], specifier = ">=1.17.0.2" },
     { name = "tabulate", specifier = ">=0.10.0" },
     { name = "zensical", specifier = ">=0.0.59" },
 ]
