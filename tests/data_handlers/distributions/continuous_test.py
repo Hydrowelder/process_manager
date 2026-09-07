@@ -14,8 +14,8 @@ from stochas import (
     FDistribution,
     GammaDistribution,
     LaplaceDistribution,
-    LogNormalDistribution,
     LogisticDistribution,
+    LogNormalDistribution,
     NormalDistribution,
     ParetoDistribution,
     RayleighDistribution,
@@ -309,7 +309,7 @@ def test_logistic_properties():
     mu, beta = 5.0, 2.0
     dist = LogisticDistribution(name=DistName("lo"), mu=mu, beta=beta)
 
-    samples = dist.sample(1000)
+    samples = dist.sample(10000)
     assert np.isclose(np.mean(samples), mu, atol=0.3)
 
     assert np.isclose(dist.cdf(mu), 0.5)

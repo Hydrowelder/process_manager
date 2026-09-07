@@ -6,8 +6,7 @@ import math
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 import numpy as np
-import scipy.stats as stats
-from pydantic import PrivateAttr, field_serializer, field_validator, model_validator
+from pydantic import field_serializer, field_validator, model_validator
 
 from stochas.distribution._base import (
     ContinuousDistribution,
@@ -16,9 +15,11 @@ from stochas.distribution._base import (
 )
 
 if TYPE_CHECKING:
-    from scipy.stats.distributions import rv_continuous
+    from scipy.stats._distn_infrastructure import (  # pyright: ignore[reportMissingModuleSource]
+        rv_continuous_frozen,
+    )
 else:
-    rv_continuous = Any
+    rv_continuous_frozen = Any
 
 
 class NormalDistribution(ContinuousDistribution[float]):
@@ -49,8 +50,6 @@ class NormalDistribution(ContinuousDistribution[float]):
     sigma: float
     """Standard deviation of distribution. Must be positive."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.NORMAL] = DistType.NORMAL
 
     @model_validator(mode="after")
@@ -61,10 +60,10 @@ class NormalDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.norm(loc=self.mu, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.norm(loc=self.mu, scale=self.sigma)
 
     def draw(self, size: int = 1):
         return self.rng.normal(loc=self.mu, scale=self.sigma, size=size)
@@ -111,8 +110,6 @@ class UniformDistribution(ContinuousDistribution[float]):
     high: float
     """Maximum value of distribution."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.UNIFORM] = DistType.UNIFORM
 
     @model_validator(mode="after")
@@ -123,10 +120,10 @@ class UniformDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.uniform(loc=self.low, scale=self.scale)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.uniform(loc=self.low, scale=self.scale)
 
     @property
     def scale(self) -> float:
@@ -180,8 +177,6 @@ class TriangularDistribution(ContinuousDistribution[float]):
     high: float
     """Maximum value of distribution."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.TRIANGULAR] = DistType.TRIANGULAR
 
     @model_validator(mode="after")
@@ -192,13 +187,13 @@ class TriangularDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
         # scipy mapping: loc=low, scale=high-low, c=(mode-low)/scale
         rescale = self.high - self.low
         c = (self.mode - self.low) / rescale if rescale != 0 else 0
-        self._scipy = stats.triang(c=c, loc=self.low, scale=rescale)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+        return stats.triang(c=c, loc=self.low, scale=rescale)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.triangular(
@@ -252,8 +247,6 @@ class TruncatedNormalDistribution(ContinuousDistribution[float]):
     high: float = float("inf")
     """Upper bound of distribution."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.TRUNCATED_NORMAL] = DistType.TRUNCATED_NORMAL
 
     @field_validator("low", mode="before")
@@ -275,12 +268,20 @@ class TruncatedNormalDistribution(ContinuousDistribution[float]):
         return None if math.isinf(v) else v
 
     @model_validator(mode="after")
-    def validate_and_setup(self) -> Self:
+    def validate_sigma(self) -> Self:
+        if self.sigma <= 0:
+            msg = f"Distribution {self.name} has a non-positive standard deviation. It must be greater than 0."
+            logger.error(msg)
+            raise ValueError(msg)
+        return self
+
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
         # a and b are the number of standard deviations away from the mean
         a = (self.low - self.mu) / self.sigma
         b = (self.high - self.mu) / self.sigma
-        self._scipy = stats.truncnorm(a=a, b=b, loc=self.mu, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+        return stats.truncnorm(a=a, b=b, loc=self.mu, scale=self.sigma)
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy doesn't have a truncnorm generator
@@ -328,14 +329,12 @@ class LogNormalDistribution(ContinuousDistribution[float]):
     scale: float = 1.0
     """exp(mu)"""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.LOG_NORMAL] = DistType.LOG_NORMAL
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.lognorm(s=self.s, scale=self.scale)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.lognorm(s=self.s, scale=self.scale)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.lognormal(mean=np.log(self.scale), sigma=self.s, size=size)
@@ -379,14 +378,12 @@ class ExponentialDistribution(ContinuousDistribution[float]):
     lam: float
     """Rate parameter (lambda)."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.EXPONENTIAL] = DistType.EXPONENTIAL
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.expon(scale=1 / self.lam)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.expon(scale=1 / self.lam)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.exponential(scale=1 / self.lam, size=size)
@@ -430,8 +427,6 @@ class RayleighDistribution(ContinuousDistribution[float]):
     scale: float
     """Scale parameter (sigma). Must be positive."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.RAYLEIGH] = DistType.RAYLEIGH
 
     @model_validator(mode="after")
@@ -442,10 +437,10 @@ class RayleighDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.rayleigh(scale=self.scale)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.rayleigh(scale=self.scale)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.rayleigh(scale=self.scale, size=size)
@@ -492,8 +487,6 @@ class GammaDistribution(ContinuousDistribution[float]):
     beta: float
     """Scale parameter. Must be positive. Mean = alpha * beta."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.GAMMA] = DistType.GAMMA
 
     @model_validator(mode="after")
@@ -508,10 +501,10 @@ class GammaDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.gamma(a=self.alpha, scale=self.beta)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.gamma(a=self.alpha, scale=self.beta)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.gamma(shape=self.alpha, scale=self.beta, size=size)
@@ -558,8 +551,6 @@ class BetaDistribution(ContinuousDistribution[float]):
     beta: float
     """Second shape parameter. Must be positive."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.BETA] = DistType.BETA
 
     @model_validator(mode="after")
@@ -574,10 +565,10 @@ class BetaDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.beta(a=self.alpha, b=self.beta)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.beta(a=self.alpha, b=self.beta)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.beta(a=self.alpha, b=self.beta, size=size)
@@ -624,8 +615,6 @@ class WeibullDistribution(ContinuousDistribution[float]):
     scale: float
     """Scale parameter (lambda). Must be positive. Sets the characteristic life."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.WEIBULL] = DistType.WEIBULL
 
     @model_validator(mode="after")
@@ -640,10 +629,10 @@ class WeibullDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.weibull_min(c=self.shape, scale=self.scale)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.weibull_min(c=self.shape, scale=self.scale)
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy.weibull draws from the standard Weibull (scale=1); multiply by scale
@@ -691,8 +680,6 @@ class LogisticDistribution(ContinuousDistribution[float]):
     beta: float
     """Scale parameter. Must be positive. Controls the spread."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.LOGISTIC] = DistType.LOGISTIC
 
     @model_validator(mode="after")
@@ -703,10 +690,10 @@ class LogisticDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.logistic(loc=self.mu, scale=self.beta)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.logistic(loc=self.mu, scale=self.beta)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.logistic(loc=self.mu, scale=self.beta, size=size)
@@ -752,8 +739,6 @@ class ParetoDistribution(ContinuousDistribution[float]):
     beta: float
     """Scale parameter (minimum value). Must be positive."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.PARETO] = DistType.PARETO
 
     @model_validator(mode="after")
@@ -768,10 +753,10 @@ class ParetoDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.pareto(b=self.alpha, scale=self.beta)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.pareto(b=self.alpha, scale=self.beta)
 
     def draw(self, size: int = 1) -> np.ndarray:
         # numpy pareto returns Lomax samples (x >= 0); add 1 and scale to match scipy's Pareto
@@ -816,8 +801,6 @@ class StudentTDistribution(ContinuousDistribution[float]):
     nu: float
     """Degrees of freedom. Must be positive."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.STUDENT_T] = DistType.STUDENT_T
 
     @model_validator(mode="after")
@@ -828,10 +811,10 @@ class StudentTDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.t(df=self.nu)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.t(df=self.nu)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.standard_t(df=self.nu, size=size)
@@ -878,8 +861,6 @@ class CauchyDistribution(ContinuousDistribution[float]):
     sigma: float
     """Scale parameter. Must be positive."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.CAUCHY] = DistType.CAUCHY
 
     @model_validator(mode="after")
@@ -890,10 +871,10 @@ class CauchyDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.cauchy(loc=self.theta, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.cauchy(loc=self.theta, scale=self.sigma)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.standard_cauchy(size=size) * self.sigma + self.theta
@@ -937,8 +918,6 @@ class ChiSquaredDistribution(ContinuousDistribution[float]):
     p: int
     """Degrees of freedom. Must be at least 1."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.CHI_SQUARED] = DistType.CHI_SQUARED
 
     @model_validator(mode="after")
@@ -951,10 +930,10 @@ class ChiSquaredDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.chi2(df=self.p)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.chi2(df=self.p)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.chisquare(df=self.p, size=size)
@@ -1001,8 +980,6 @@ class LaplaceDistribution(ContinuousDistribution[float]):
     sigma: float
     """Scale parameter. Must be positive."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.LAPLACE] = DistType.LAPLACE
 
     @model_validator(mode="after")
@@ -1013,10 +990,10 @@ class LaplaceDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.laplace(loc=self.mu, scale=self.sigma)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.laplace(loc=self.mu, scale=self.sigma)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.laplace(loc=self.mu, scale=self.sigma, size=size)
@@ -1063,8 +1040,6 @@ class FDistribution(ContinuousDistribution[float]):
     nu2: float
     """Denominator degrees of freedom. Must be positive."""
 
-    _scipy: rv_continuous = PrivateAttr()
-
     dist_type: Literal[DistType.F] = DistType.F
 
     @model_validator(mode="after")
@@ -1079,10 +1054,10 @@ class FDistribution(ContinuousDistribution[float]):
             raise ValueError(msg)
         return self
 
-    @model_validator(mode="after")
-    def validate_scipy(self) -> Self:
-        self._scipy = stats.f(dfn=self.nu1, dfd=self.nu2)  # pyright: ignore[reportAttributeAccessIssue]
-        return self
+    def _build_scipy(self) -> rv_continuous_frozen:
+        import scipy.stats as stats
+
+        return stats.f(dfn=self.nu1, dfd=self.nu2)
 
     def draw(self, size: int = 1) -> np.ndarray:
         return self.rng.f(dfnum=self.nu1, dfden=self.nu2, size=size)

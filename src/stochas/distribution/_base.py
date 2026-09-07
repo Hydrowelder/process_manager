@@ -32,8 +32,18 @@ from stochas.named_value import NamedValue, ValueName
 from stochas.unit_system import UnitDescriptor, UnitSystem
 
 if TYPE_CHECKING:
+    from scipy.stats._distn_infrastructure import (  # pyright: ignore[reportMissingModuleSource]
+        rv_continuous_frozen,
+        rv_discrete_frozen,
+    )
+    from scipy.stats.distributions import rv_discrete
+
     from stochas.distribution import DistributionDict
     from stochas.named_value import NamedValueDict
+else:
+    rv_continuous_frozen = Any
+    rv_discrete_frozen = Any
+    rv_discrete = Any
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +189,7 @@ class Distribution[T](ABC, MetadataMixin):
     Clear as mud?
     """
 
-    nominal: T | None | SerializableUndefined = Field(default=UNDEFINED)
+    nominal: T | SerializableUndefined | None = Field(default=UNDEFINED)
     """Value the distribution should take if the trial_number attribute is equal to 0."""
 
     trial_num: int = NOMINAL_TRIAL_NUM
@@ -366,9 +376,23 @@ class Distribution[T](ABC, MetadataMixin):
 class DiscreteDistribution[T](Distribution[T], ABC):
     """Base class for distributions over a countable set of values, exposed through a probability mass function (pmf) rather than a pdf."""
 
+    _scipy_cache: rv_discrete_frozen | rv_discrete | None = PrivateAttr(default=None)
+
     @property
     def is_continuous(self) -> Literal[False]:
         return False
+
+    @property
+    def _scipy(self) -> rv_discrete_frozen | rv_discrete:
+        """Frozen scipy.stats distribution, built and cached on first access so scipy is only imported when actually needed."""
+        if self._scipy_cache is None:
+            self._scipy_cache = self._build_scipy()
+        return self._scipy_cache
+
+    def _build_scipy(self) -> rv_discrete_frozen | rv_discrete:
+        """Constructs the frozen scipy.stats distribution backing this class. Override in subclasses that use `_scipy`."""
+        msg = f"{self.__class__.__name__} does not define a scipy distribution"
+        raise NotImplementedError(msg)
 
     @abstractmethod
     def pmf(self, x: Any) -> float | np.ndarray:
@@ -386,6 +410,19 @@ class DiscreteDistribution[T](Distribution[T], ABC):
 class ContinuousDistribution[T](Distribution[T], ABC):
     """Base class for distributions over a continuous range, exposed through a probability density function (pdf)."""
 
+    _scipy_cache: rv_continuous_frozen | None = PrivateAttr(default=None)
+
     @property
     def is_continuous(self) -> Literal[True]:
         return True
+
+    @property
+    def _scipy(self) -> rv_continuous_frozen:
+        """Frozen scipy.stats distribution, built and cached on first access so scipy is only imported when actually needed."""
+        if self._scipy_cache is None:
+            self._scipy_cache = self._build_scipy()
+        return self._scipy_cache
+
+    @abstractmethod
+    def _build_scipy(self) -> rv_continuous_frozen:
+        """Constructs the frozen scipy.stats distribution backing this class."""
